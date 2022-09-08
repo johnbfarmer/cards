@@ -1,0 +1,156 @@
+.react-tabs__tab-list {
+    border-bottom: 1px solid #aaa;
+    margin: 0 0 10px;
+    padding: 0;
+}
+
+.react-tabs__tab {
+    display: inline-block;
+    border: 1px solid transparent;
+    border-bottom: none;
+    bottom: -1px;
+    position: relative;
+    list-style: none;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.react-tabs__tab--selected {
+    background: #fff;
+    border-color: #aaa;
+    color: black;
+    border-radius: 5px 5px 0 0;
+}
+
+.react-tabs__tab-panel {
+    display: none;
+}
+
+.react-tabs__tab-panel--selected {
+    display: block;
+}
+
+.react-tabs__tab--disabled {
+    color: GrayText;
+    cursor: default;
+}
+
+.react-tabs__tab:focus {
+    box-shadow: 0 0 5px hsl(208, 99%, 50%);
+    border-color: hsl(208, 99%, 50%);
+    outline: none;
+}
+
+.react-tabs__tab:focus:after {
+    content: "";
+    position: absolute;
+    height: 5px;
+    left: -4px;
+    right: -4px;
+    bottom: -5px;
+    background: #fff;
+}
+
+.summary-table td {
+    text-align: right;
+    padding: 0px 10px;
+}
+
+.summary-table th {
+    padding: 0px 10px;
+    background-color: lightgray;
+}
+
+.pointer {
+    cursor: pointer;
+}
+
+.hot {
+    color: red;
+}
+
+.dull {
+    color: lightgray;
+}
+
+.green {
+    color: green;
+    font-size:  18px;
+}
+
+.sb-link {
+    color: blue;
+    cursor: pointer;
+}
+
+.top-border {
+    border-top: 1px solid black;
+    margin-top: 3px;
+    padding-top: 3px;
+}
+
+.top-margin-30 {
+    margin-top: 30px;
+}
+
+.float-right {
+    float: right;
+}
+
+.no-wrap {
+    white-space: nowrap;
+}
+
+.chart-container {
+    width: 100%;
+}
+
+.chart-top {
+    text-align: center;
+}
+
+.title-area {
+    /*text-align: center;*/
+}
+
+.chart-type-container {
+    float: right;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.chart-type-selector {
+    padding-left: 3px;
+}
+
+.margins-10 {
+    margin: 10px;
+}
+
+.nav-input-sm {
+    width: 4ch;
+    text-align: right;
+    margin-right: 1em;
+    margin-left: 1em;
+}
+
+.nav-input-lg {
+    width: 20ch;
+    text-align: right;
+    margin-right: 1em;
+    margin-left: 1em;
+}
+
+.left-nav {
+    margin-left: 20px;
+}
+
+.acad-bold {
+    font-weight: 600;
+}
+
+.acad-indent {
+    padding-left: 5%;
+}
