@@ -26,7 +26,8 @@ class TestCommand extends ContainerAwareCommand
             ->setHelp('')
             ->addArgument('game', InputArgument::OPTIONAL, '', 'hearts')
             ->addOption('players', 'p', InputOption::VALUE_REQUIRED, 'number of players', 4)
-            ->addOption('cards', 'c', InputOption::VALUE_REQUIRED, 'number of cards', 13);
+            ->addOption('cards', 'c', InputOption::VALUE_REQUIRED, 'number of cards', 13)
+            ->addOption('no-prompt', null, InputOption::VALUE_NONE, 'wait for user input');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -42,19 +43,23 @@ class TestCommand extends ContainerAwareCommand
         $this->parameters['output'] = $output;
         $t = new Game($this->parameters);
         $t->start();
-        $a = $io->ask(
+        $a = $this->prompt($io);
+
+        while($a && $t->play()) {
+            $a = $this->prompt($io);
+        }
+    }
+
+    protected function prompt($io)
+    {
+        if (!empty($this->parameters['no-prompt'])) {
+            return true;
+        }
+
+        return $io->ask(
             "Press ENTER to continue, q to quit",
             null,
             function($answer) { return strtolower($answer) !== 'q'; }
         );
-
-        while($a && $t->play()) {
-            $a = $io->ask(
-                "Press ENTER to continue, q to quit",
-                null,
-                function($answer) { return strtolower($answer) !== 'q'; }
-            );
-            // break;
-        }
     }
 }

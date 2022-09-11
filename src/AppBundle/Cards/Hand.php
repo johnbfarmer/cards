@@ -13,7 +13,9 @@ class Hand extends BaseProcess {
 
 	public function sort()
 	{
-		usort($this->cards, function($a, $b) {
+		usort(
+			$this->cards, 
+			function($a, $b) {
                 return $a->getSortOrder() <=> $b->getSortOrder();
             }
         );
@@ -29,9 +31,33 @@ class Hand extends BaseProcess {
 		$this->writeln("$str\n");
 	}
 
-	public function remove()
+	public function remove($idx)
 	{
-		array_pop($this->cards);
+		unset($this->cards[$idx]);
+	}
+
+	public function getCard($idx)
+	{
+		$card = $this->cards[$idx];
+		unset($this->cards[$idx]);
+		$this->cards = array_values($this->cards);
+		return $card;
+	}
+
+	public function getCardCount()
+	{
+		return count($this->cards);
+	}
+
+	public function hasCard($cardIdx)
+	{
+		foreach($this->cards as $card) {
+			if ($card->getSortOrder() == $cardIdx) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function hasCards()

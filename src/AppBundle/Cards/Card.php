@@ -7,8 +7,8 @@ class Card  extends BaseProcess{
 	protected $value;
 	protected $sortOrder;
 	protected $idx;
-	protected $suits = ['♣', '♦', '♥', '♠'];
-	protected $faces = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+	protected static $suits = ['♣', '♦', '♥', '♠'];
+	protected static $faces = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 
 	public function __construct($idx)
 	{
@@ -20,7 +20,7 @@ class Card  extends BaseProcess{
 
 	public function display()
 	{
-		return $this->faces[$this->value] . $this->suits[$this->suit];
+		return self::$faces[$this->value] . self::$suits[$this->suit];
 	}
 
 	public function getSuit()
@@ -36,5 +36,10 @@ class Card  extends BaseProcess{
 	public function getSortOrder()
 	{
 		return $this->sortOrder;
+	}
+
+	public static function getDisplayFromIdx($idx)
+	{
+		return self::$faces[floor($idx / 4)] . self::$suits[$idx % 4];
 	}
 }

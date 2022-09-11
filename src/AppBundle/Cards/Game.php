@@ -8,6 +8,8 @@ class Game extends BaseProcess {
 	protected $deck;
 	protected $players;
 	protected $gameOver = false;
+	protected $isPassRound = true;
+	protected $leadPlayer = 0;
 
 	public function __construct($params)
 	{
@@ -31,19 +33,34 @@ class Game extends BaseProcess {
 			$this->players[$i]->addHand($hand);
 			$this->players[$i]->showHand();
 		}
+
+		foreach ($this->players as $i => $p) {
+			if ($p->hasCard(0)) {
+				$this->leadPlayer = $i;
+			}
+		}
 	}
 
 	public function play()
 	{
-		for ($i = 0; $i < $this->numberOfPlayers; $i++) {
-			$this->players[$i]->playCard();
-			$this->players[$i]->showHand();
-			if (!$this->players[$i]->hasCards()) {
-				$this->endGame();
-			}
+		if ($this->isPassRound) {
+			return $this->passCards();
 		}
 
-		return !$this->gameOver;
+		$trick = new Trick($this->players, $this->numberOfPlayers, $this->leadPlayer);
+		$trick->play();
+		$trick->showCardsPlayed();
+		$this->players = $trick->getPlayers();
+		$this->leadPlayer = $trick->getLeadPlayer();
+
+		return !$trick->getGameOver();
+	}
+
+	protected function passCards()
+	{
+		// tbi
+		$this->isPassRound = false;
+		return true;
 	}
 
 	public function endGame()
