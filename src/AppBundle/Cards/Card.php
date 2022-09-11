@@ -18,7 +18,7 @@ class Card  extends BaseProcess{
 		$this->sortOrder = 13 * $this->suit + $this->value;
 	}
 
-	public function display()
+	public function getDisplay()
 	{
 		return self::$faces[$this->value] . self::$suits[$this->suit];
 	}
@@ -33,9 +33,23 @@ class Card  extends BaseProcess{
 		return $this->value;
 	}
 
+	public function getIdx()
+	{
+		return $this->idx;
+	}
+
 	public function getSortOrder()
 	{
 		return $this->sortOrder;
+	}
+
+	public static function getIdxFromDisplay($display)
+	{
+		$suit = substr($display, -1);
+		$suitIdx = array_search($suit, self::$suits);
+		$value = substr($display, 0, -1);
+		$valueIdx = array_search($value, self::$faces);
+		return 13 * $suit + $value;
 	}
 
 	public static function getDisplayFromIdx($idx)

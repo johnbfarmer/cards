@@ -5,7 +5,7 @@ namespace AppBundle\Cards;
 class Player extends BaseProcess {
 	protected $hand;
 	protected $name;
-	protected $cardPlayed = '';
+	protected $cardPlayed;
 
 	public function __construct($id, $name = null)
 	{
@@ -23,14 +23,33 @@ class Player extends BaseProcess {
 
 	public function showHand()
 	{
-		$this->writeln($this->name . ': ' . $this->cardPlayed);
+		$s = $this->name . ':';
+		if ($this->cardPlayed) {
+			$s .= ' ' . $this->cardPlayed->getDisplay();
+		}
+		$this->writeln($s);
 		$this->hand->show();
 	}
 
-	public function playCard()
+	public function playCard($cardsPlayed)
 	{
-		$cardToPlayIdx = rand(0, $this->hand->getCardCount() - 1);
-		return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx)->display();
+		// lead
+		if (empty($cardsPlayed)) {
+			// if I have the two of clubs, play it
+			if ($this->hasCard(0)) {
+				$cardToPlayIdx = 0;
+			} else {
+				$cardToPlayIdx = rand(0, $this->hand->getCardCount() - 1);
+			}
+		// follow
+		} else {
+			$suit = $cardsPlayed[0]->getSuit();
+			$eligibleCards = $this->hand->getEligibleCards($suit);
+			$eligibleIdx = rand(0, count($eligibleCards) - 1);
+			$cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
+		}
+
+		return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
 	}
 
 	public function hasCards()

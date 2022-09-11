@@ -34,7 +34,7 @@ class Trick extends BaseProcess {
 		$this->writeln('');
 
 		foreach ($this->getPlayerOrder() as $i) {
-			$this->cardsPlayed[] = $this->players[$i]->playCard();
+			$this->cardsPlayed[] = $this->players[$i]->playCard($this->cardsPlayed);
 			$this->players[$i]->showHand();
 			if (!$this->players[$i]->hasCards()) {
 				$this->endGame();
@@ -46,8 +46,11 @@ class Trick extends BaseProcess {
 
 	public function showCardsPlayed()
 	{
-		$this->writeln('Cards Played: ' . implode(' ', $this->cardsPlayed));
-		$this->writeln('');
+		$s = 'Cards Played: ';
+		foreach($this->cardsPlayed as $c) {
+			$s .= $c->getDisplay(). ' ';
+		}
+		$this->writeln($s);
 		$this->writeln('');
 		$this->writeln('');
 	}

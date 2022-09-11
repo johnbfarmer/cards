@@ -25,7 +25,7 @@ class Hand extends BaseProcess {
 	{
 		$str = '';
 		foreach ($this->cards as $c) {
-			$str .= $c->display() . ' ';
+			$str .= $c->getDisplay() . ' ';
 		}
 
 		$this->writeln("$str\n");
@@ -52,7 +52,7 @@ class Hand extends BaseProcess {
 	public function hasCard($cardIdx)
 	{
 		foreach($this->cards as $card) {
-			if ($card->getSortOrder() == $cardIdx) {
+			if ($card->getIdx() == $cardIdx) {
 				return true;
 			}
 		}
@@ -64,4 +64,20 @@ class Hand extends BaseProcess {
 	{
 		return !empty($this->cards);
 	}
+
+	public function getEligibleCards($suit)
+	{
+		$eligible = [];
+		foreach($this->cards as $idx => $card) {
+			if ($card->getSuit() == $suit) {
+				$eligible[$idx] = $card;
+			}
+		}
+
+		if (empty($eligible)) {
+			return $this->cards;
+		}
+
+		return $eligible;
+	} 
 }
