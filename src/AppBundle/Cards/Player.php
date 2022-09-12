@@ -5,6 +5,7 @@ namespace AppBundle\Cards;
 class Player extends BaseProcess {
 	protected $hand;
 	protected $name;
+	protected $score = 0;
 	protected $cardPlayed;
 
 	public function __construct($id, $name = null)
@@ -31,17 +32,16 @@ class Player extends BaseProcess {
 		$this->hand->show();
 	}
 
-	public function playCard($cardsPlayed)
+	public function playCard($cardsPlayed, $isBrokenHearts)
 	{
-		// lead
 		if (empty($cardsPlayed)) {
-			// if I have the two of clubs, play it
 			if ($this->hasCard(0)) {
 				$cardToPlayIdx = 0;
 			} else {
-				$cardToPlayIdx = rand(0, $this->hand->getCardCount() - 1);
+				$eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
+				$eligibleIdx = rand(0, count($eligibleCards) - 1);
+				$cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
 			}
-		// follow
 		} else {
 			$suit = $cardsPlayed[0]->getSuit();
 			$eligibleCards = $this->hand->getEligibleCards($suit);
@@ -60,5 +60,15 @@ class Player extends BaseProcess {
 	public function hasCard($cardIdx)
 	{
 		return $this->hand->hasCard($cardIdx);
+	}
+
+	public function addPoints($pts)
+	{
+		$this->score += $pts;
+	}
+
+	public function getScore()
+	{
+		return $this->score;
 	}
 }

@@ -79,5 +79,21 @@ class Hand extends BaseProcess {
 		}
 
 		return $eligible;
-	} 
+	}
+
+	public function getEligibleLeadCards($isBrokenHearts)
+	{
+		$eligible = [];
+		foreach($this->cards as $idx => $card) {
+			if ($isBrokenHearts || $card->getSuit() !== 2) {
+				$eligible[$idx] = $card;
+			}
+		}
+
+		if (empty($eligible)) {
+			return $this->cards;
+		}
+
+		return $eligible;
+	}
 }

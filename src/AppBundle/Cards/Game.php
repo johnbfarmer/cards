@@ -5,15 +5,13 @@ namespace AppBundle\Cards;
 class Game extends BaseProcess {
 	protected $numberOfPlayers = 4;
 	protected $numberOfCardsToDeal = 13;
-	protected $deck;
 	protected $players;
+	protected $round;
 	protected $gameOver = false;
 	protected $isPassRound = true;
-	protected $leadPlayer = 0;
 
 	public function __construct($params)
 	{
-		$this->deck = new Deck();
 		$this->numberOfPlayers = $params['players'];
 		$this->numberOfCardsToDeal = $params['cards'];
 		$this->createPlayers();
@@ -28,39 +26,20 @@ class Game extends BaseProcess {
 
 	public function start()
 	{
-		for ($i = 0; $i < $this->numberOfPlayers; $i++) {
-			$hand = new Hand($this->deck->deal($this->numberOfCardsToDeal));
-			$this->players[$i]->addHand($hand);
-			$this->players[$i]->showHand();
-		}
+		// tbi allow for multiple rounds
+		$this->round = new Round([
+			'numberOfPlayers' => $this->numberOfPlayers,
+			'numberOfCardsToDeal' => $this->numberOfCardsToDeal,
+			'players' => $this->players,
+			'isPassRound' => $this->isPassRound,
+		]);
 
-		foreach ($this->players as $i => $p) {
-			if ($p->hasCard(0)) {
-				$this->leadPlayer = $i;
-			}
-		}
+		$this->round->start();
 	}
 
 	public function play()
 	{
-		if ($this->isPassRound) {
-			return $this->passCards();
-		}
-
-		$trick = new Trick($this->players, $this->numberOfPlayers, $this->leadPlayer);
-		$trick->play();
-		$trick->showCardsPlayed();
-		$this->players = $trick->getPlayers();
-		$this->leadPlayer = $trick->getLeadPlayer();
-
-		return !$trick->getGameOver();
-	}
-
-	protected function passCards()
-	{
-		// tbi
-		$this->isPassRound = false;
-		return true;
+		return $this->round->play();
 	}
 
 	public function endGame()
