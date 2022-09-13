@@ -12,7 +12,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use AppBundle\Cards\Game;
 
-class TestCommand extends ContainerAwareCommand
+class CardsTestCommand extends ContainerAwareCommand
 {
     protected 
         $config,
@@ -21,7 +21,7 @@ class TestCommand extends ContainerAwareCommand
 
     protected function configure()
     {
-        $this->setName('cards:test')
+        $this->setName('cards:hearts')
             ->setDescription('')
             ->setHelp('')
             ->addArgument('game', InputArgument::OPTIONAL, '', 'hearts')
@@ -32,34 +32,13 @@ class TestCommand extends ContainerAwareCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $output->writeln('CARDS');
         $this->parameters = array_merge($input->getArguments(), $input->getOptions());
-        $output->writeln(strtoupper($this->parameters['game']));
-        $input->setInteractive(true);
         $io = new SymfonyStyle($input, $output);
 
         $io->title("The game is " . strtoupper($this->parameters['game']));
 
         $this->parameters['output'] = $output;
         $t = new Game($this->parameters);
-        $t->start();
-        $a = $this->prompt($io);
-
-        while($a && $t->play()) {
-            $a = $this->prompt($io);
-        }
-    }
-
-    protected function prompt($io)
-    {
-        if (!empty($this->parameters['no-prompt'])) {
-            return true;
-        }
-
-        return $io->ask(
-            "Press ENTER to continue, q to quit",
-            null,
-            function($answer) { return strtolower($answer) !== 'q'; }
-        );
+        $t->play();
     }
 }

@@ -5,8 +5,11 @@ namespace AppBundle\Cards;
 class Game extends BaseProcess {
 	protected $numberOfPlayers = 4;
 	protected $numberOfCardsToDeal = 13;
+	protected $maxRounds = 16;
+	protected $maxScore = 100;
 	protected $players;
 	protected $round;
+	protected $roundCount = 1;
 	protected $gameOver = false;
 	protected $isPassRound = true;
 
@@ -24,22 +27,25 @@ class Game extends BaseProcess {
 		}
 	}
 
-	public function start()
-	{
-		// tbi allow for multiple rounds
-		$this->round = new Round([
-			'numberOfPlayers' => $this->numberOfPlayers,
-			'numberOfCardsToDeal' => $this->numberOfCardsToDeal,
-			'players' => $this->players,
-			'isPassRound' => $this->isPassRound,
-		]);
-
-		$this->round->start();
-	}
-
 	public function play()
 	{
-		return $this->round->play();
+		while ($this->roundCount++ <= $this->maxRounds) {
+			$this->writeln('Round '.($this->roundCount - 1));
+			$this->round = new Round([
+				'numberOfPlayers' => $this->numberOfPlayers,
+				'numberOfCardsToDeal' => $this->numberOfCardsToDeal,
+				'players' => $this->players,
+				'isPassRound' => $this->isPassRound,
+			]);
+
+			$this->round->start();
+
+			while ($this->round->play());
+
+			if ($this->round->getMaxScore() >= $this->maxScore) {
+				break;
+			}
+		}
 	}
 
 	public function endGame()

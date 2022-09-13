@@ -32,10 +32,15 @@ class Player extends BaseProcess {
 		$this->hand->show();
 	}
 
-	public function playCard($cardsPlayed, $isBrokenHearts)
+	public function report()
+	{
+		$this->writeln($this->name . ': ' . $this->score);
+	}
+
+	public function playCard($cardsPlayed, $isBrokenHearts, $isFirstTrick)
 	{
 		if (empty($cardsPlayed)) {
-			if ($this->hasCard(0)) {
+			if ($isFirstTrick && $this->hasCard(0)) {
 				$cardToPlayIdx = 0;
 			} else {
 				$eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);

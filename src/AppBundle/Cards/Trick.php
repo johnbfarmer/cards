@@ -10,12 +10,13 @@ class Trick extends BaseProcess {
 	protected $roundOver = false;
 	protected $cardsPlayed = [];
 
-	public function __construct($players, $numberOfPlayers, $leadPlayer, $isBrokenHearts)
+	public function __construct($params)
 	{
-		$this->players = $players;
-		$this->numberOfPlayers = $numberOfPlayers;
-		$this->leadPlayer = $leadPlayer;
-		$this->isBrokenHearts = $isBrokenHearts;
+		$this->players = $params['players'];
+		$this->numberOfPlayers = $params['numberOfPlayers'];
+		$this->leadPlayer = $params['leadPlayer'];
+		$this->isBrokenHearts = $params['isBrokenHearts'];
+		$this->isFirstTrick = $params['isFirstTrick'];
 	}
 
 	protected function getPlayerOrder()
@@ -36,7 +37,7 @@ class Trick extends BaseProcess {
 		$this->writeln('');
 
 		foreach ($this->getPlayerOrder() as $i) {
-			$this->cardsPlayed[] = $this->players[$i]->playCard($this->cardsPlayed, $this->isBrokenHearts);
+			$this->cardsPlayed[] = $this->players[$i]->playCard($this->cardsPlayed, $this->isBrokenHearts, $this->isFirstTrick);
 			$this->players[$i]->showHand();
 			if (!$this->players[$i]->hasCards()) {
 				$this->endRound();

@@ -5,6 +5,7 @@ namespace AppBundle\Cards;
 class Round extends BaseProcess {
 	protected $numberOfPlayers = 4;
 	protected $numberOfCardsToDeal = 13;
+	protected $isStarting = true;
 	protected $deck;
 	protected $players;
 	protected $roundOver = false;
@@ -23,7 +24,6 @@ class Round extends BaseProcess {
 
 	public function start()
 	{
-$this->writeln($this->numberOfPlayers);
 		for ($i = 0; $i < $this->numberOfPlayers; $i++) {
 			$hand = new Hand($this->deck->deal($this->numberOfCardsToDeal));
 			$this->players[$i]->addHand($hand);
@@ -43,11 +43,43 @@ $this->writeln($this->numberOfPlayers);
 			return $this->passCards();
 		}
 
-		$trick = new Trick($this->players, $this->numberOfPlayers, $this->leadPlayer, $this->isBrokenHearts);
+		$trick = new Trick([
+			'players' => $this->players,
+			'numberOfPlayers' => $this->numberOfPlayers,
+			'leadPlayer' => $this->leadPlayer,
+			'isBrokenHearts' => $this->isBrokenHearts,
+			'isFirstTrick' => $this->isStarting,
+		]);
 		$trick->play();
 		$this->handleTrickResult($trick);
+		$this->isStarting = false;
 
-		return !$trick->getRoundOver();
+		$isOver = $trick->getRoundOver();
+		if ($isOver) {
+			$this->report();
+		}
+		return !$isOver;
+	}
+
+	public function report()
+	{
+		$this->writeln('Score: ');
+		foreach($this->players as $player) {
+			$player->report();
+		}
+	}
+
+	public function getMaxScore()
+	{
+		$maxScore = 0;
+		foreach($this->players as $player) {
+			$score = $player->getScore();
+			if ($score > $maxScore) {
+				$maxScore = $score;
+			}
+		}
+
+		return $maxScore;
 	}
 
 	protected function handleTrickResult($trick)
@@ -58,11 +90,16 @@ $this->writeln($this->numberOfPlayers);
 		$leadSuit = $cards[0]->getSuit();
 		$topValue = $cards[0]->getValue();
 		$takesTrick = $this->leadPlayer;
+		$points = 0;
 		foreach($cards as $idx => $card) {
 			$suit = $card->getSuit();
 			$value = $card->getValue();
 			if ($suit === 2) {
 				$this->isBrokenHearts = true;
+				$points++;
+			}
+			if ($suit === 3 && $value == 10) {
+				$points += 13;
 			}
 			if ($suit === $leadSuit && $value > $topValue) {
 				$topValue = $value;
@@ -70,7 +107,9 @@ $this->writeln($this->numberOfPlayers);
 			}
 		}
 
+		$this->players[$takesTrick]->addPoints($points);
 		$this->leadPlayer = $takesTrick;
+		$this->writeln($points . ' for P' . $takesTrick);
 	}
 
 	protected function passCards()
@@ -78,10 +117,5 @@ $this->writeln($this->numberOfPlayers);
 		// tbi
 		$this->isPassRound = false;
 		return true;
-	}
-
-	public function endGame()
-	{
-		$this->roundOver = true;
 	}
 }
