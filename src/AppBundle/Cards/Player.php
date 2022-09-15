@@ -44,17 +44,22 @@ class Player extends BaseProcess {
 				$cardToPlayIdx = 0;
 			} else {
 				$eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
-				$eligibleIdx = rand(0, count($eligibleCards) - 1);
+				$eligibleIdx = $this->selectCard($eligibleCards);
 				$cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
 			}
 		} else {
 			$suit = $cardsPlayed[0]->getSuit();
-			$eligibleCards = $this->hand->getEligibleCards($suit);
-			$eligibleIdx = rand(0, count($eligibleCards) - 1);
+			$eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
+			$eligibleIdx = $this->selectCard($eligibleCards);
 			$cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
 		}
 
 		return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
+	}
+
+	protected function selectCard($eligibleCards)
+	{
+		return rand(0, count($eligibleCards) - 1);
 	}
 
 	public function hasCards()
