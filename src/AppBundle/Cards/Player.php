@@ -7,6 +7,7 @@ class Player extends BaseProcess {
 	protected $name;
 	protected $score = 0;
 	protected $cardPlayed;
+	protected $cardsPlayedThisRound = [];
 
 	public function __construct($id, $name = null)
 	{
@@ -20,6 +21,7 @@ class Player extends BaseProcess {
 	public function addHand($hand)
 	{
 		$this->hand = $hand;
+		$this->cardsPlayedThisRound = [];
 	}
 
 	public function showHand()
@@ -59,7 +61,15 @@ class Player extends BaseProcess {
 
 	protected function selectCard($eligibleCards)
 	{
-		return rand(0, count($eligibleCards) - 1);
+		$s = new Selector;
+		return $s->selectCard($eligibleCards);
+	}
+
+	public function gatherInfo($info)
+	{
+		if (isset($info['cardsPlayed'])) {
+			$this->cardsPlayedThisRound = array_merge($this->cardsPlayedThisRound, $info['cardsPlayed']);
+		}
 	}
 
 	public function hasCards()
@@ -80,5 +90,10 @@ class Player extends BaseProcess {
 	public function getScore()
 	{
 		return $this->score;
+	}
+
+	public function getName()
+	{
+		return $this->name;
 	}
 }

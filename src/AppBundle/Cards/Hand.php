@@ -76,7 +76,7 @@ class Hand extends BaseProcess {
 
 		if (empty($eligible)) {
 			if ($isFirstTrick) {
-				$cards = $this->cards();
+				$cards = $this->cards;
 				$eligible = [];
 				foreach($cards as $c) {
 					if ($c->getSuit() === 2 || ($c->getSuit() === 2 && $c->getValue() === 10)) {

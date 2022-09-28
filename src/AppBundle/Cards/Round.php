@@ -8,8 +8,8 @@ class Round extends BaseProcess {
 	protected $isStarting = true;
 	protected $deck;
 	protected $players;
+	protected $roundCount = 1;
 	protected $roundOver = false;
-	protected $isPassRound = true;
 	protected $leadPlayer = 0;
 	protected $isBrokenHearts = false;
 
@@ -19,7 +19,7 @@ class Round extends BaseProcess {
 		$this->numberOfPlayers = $params['numberOfPlayers'];
 		$this->numberOfCardsToDeal = $params['numberOfCardsToDeal'];
 		$this->players = $params['players'];
-		$this->isPassRound = $params['isPassRound'];
+		$this->roundCount = $params['roundCount'];
 	}
 
 	public function start()
@@ -30,6 +30,8 @@ class Round extends BaseProcess {
 			$this->players[$i]->showHand();
 		}
 
+		$this->passCards();
+
 		foreach ($this->players as $i => $p) {
 			if ($p->hasCard(0)) {
 				$this->leadPlayer = $i;
@@ -39,10 +41,6 @@ class Round extends BaseProcess {
 
 	public function play()
 	{
-		if ($this->isPassRound) {
-			return $this->passCards();
-		}
-
 		$trick = new Trick([
 			'players' => $this->players,
 			'numberOfPlayers' => $this->numberOfPlayers,
@@ -63,7 +61,7 @@ class Round extends BaseProcess {
 
 	public function report()
 	{
-		$this->writeln('Score: ');
+		$this->writeln('At the end of round ' . $this->roundCount . ', the score is: ');
 		foreach($this->players as $player) {
 			$player->report();
 		}
@@ -109,13 +107,19 @@ class Round extends BaseProcess {
 
 		$this->players[$takesTrick]->addPoints($points);
 		$this->leadPlayer = $takesTrick;
-		$this->writeln($points . ' for P' . $takesTrick);
+		$this->writeln($points . ' for ' . $this->players[$takesTrick]->getName());
 	}
 
 	protected function passCards()
 	{
 		// tbi
-		$this->isPassRound = false;
-		return true;
+		$dirLabel = $this->getPassDirectionLabel();
+		$this->writeln($dirLabel === 'hold' ? 'We do not pass this round' : 'We would pass ' . $dirLabel . '...');
+	}
+
+	protected function getPassDirectionLabel()
+	{
+		$a = ['left', 'right', 'across', 'hold'];
+		return $a[($this->roundCount - 1) % 4];
 	}
 }

@@ -44,6 +44,10 @@ class Trick extends BaseProcess {
 			}
 		}
 
+		foreach($this->players as $p) {
+			$p->gatherInfo(['cardsPlayed' => $this->cardsPlayed]);
+		}
+
 		return $this->roundOver;
 	}
 

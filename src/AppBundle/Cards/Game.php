@@ -11,7 +11,6 @@ class Game extends BaseProcess {
 	protected $round;
 	protected $roundCount = 1;
 	protected $gameOver = false;
-	protected $isPassRound = true;
 
 	public function __construct($params)
 	{
@@ -30,12 +29,13 @@ class Game extends BaseProcess {
 	public function play()
 	{
 		while ($this->roundCount++ <= $this->maxRounds) {
+			$this->writeln('');
 			$this->writeln('Round '.($this->roundCount - 1));
 			$this->round = new Round([
 				'numberOfPlayers' => $this->numberOfPlayers,
 				'numberOfCardsToDeal' => $this->numberOfCardsToDeal,
 				'players' => $this->players,
-				'isPassRound' => $this->isPassRound,
+				'roundCount' => $this->roundCount - 1,
 			]);
 
 			$this->round->start();
