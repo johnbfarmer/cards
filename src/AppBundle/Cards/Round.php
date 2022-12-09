@@ -7,6 +7,7 @@ class Round extends BaseProcess {
     protected $numberOfCardsToDeal = 13;
     protected $isStarting = true;
     protected $deck;
+    protected $scores;
     protected $players;
     protected $roundCount = 1;
     protected $roundOver = false;
@@ -18,6 +19,7 @@ class Round extends BaseProcess {
         $this->deck = new Deck();
         $this->numberOfPlayers = $params['numberOfPlayers'];
         $this->numberOfCardsToDeal = $params['numberOfCardsToDeal'];
+        $this->scores = $params['scores'];
         $this->players = $params['players'];
         $this->roundCount = $params['roundCount'];
     }
@@ -67,17 +69,14 @@ class Round extends BaseProcess {
         }
     }
 
-    public function getMaxScore()
+    public function getScores()
     {
-        $maxScore = 0;
-        foreach($this->players as $player) {
-            $score = $player->getScore();
-            if ($score > $maxScore) {
-                $maxScore = $score;
-            }
+        $scores = empty($this->scores) ? [0,0,0,0] : $this->scores;
+        foreach($this->players as $i => $player) {
+            $scores[$i] = $player->getScore();
         }
 
-        return $maxScore;
+        return $scores;
     }
 
     protected function handleTrickResult($trick)
@@ -136,6 +135,7 @@ class Round extends BaseProcess {
                     break;
             }
 
+            $this->showCards($cardsInTransition[$i], $p->getName() . ' passes: ');
             $p->addCards($cardsInTransition[$j]);
             $p->showHand();
         }

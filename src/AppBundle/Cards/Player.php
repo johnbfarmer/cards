@@ -8,6 +8,7 @@ class Player extends BaseProcess {
     protected $score = 0;
     protected $cardPlayed;
     protected $cardsPlayedThisRound = [];
+    protected $handStrategy;
 
     public function __construct($id, $name = null)
     {
@@ -21,14 +22,16 @@ class Player extends BaseProcess {
     public function addHand($hand)
     {
         $this->hand = $hand;
+        $this->handStrategy = Selector::getStrategy(['hand' => $hand]);
         $this->cardsPlayedThisRound = [];
+        $this->cardPlayed = null;
     }
 
     public function showHand()
     {
-        $s = $this->name . ':';
+        $s = $this->name;
         if ($this->cardPlayed) {
-            $s .= ' ' . $this->cardPlayed->getDisplay();
+            $s .= ' plays the ' . $this->cardPlayed->getDisplay();
         }
         $this->writeln($s);
         $this->hand->show();
@@ -36,23 +39,23 @@ class Player extends BaseProcess {
 
     public function report()
     {
-        $this->writeln($this->name . ': ' . $this->score);
+        $this->writeln($this->name . ' has ' . $this->score . ' points.');
     }
 
-    public function playCard($cardsPlayed, $isBrokenHearts, $isFirstTrick)
+    public function playCard($cardsPlayedThisTrick, $isBrokenHearts, $isFirstTrick)
     {
-        if (empty($cardsPlayed)) {
+        if (empty($cardsPlayedThisTrick)) {
             if ($isFirstTrick && $this->hasCard(0)) {
                 $cardToPlayIdx = 0;
             } else {
                 $eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
-                $eligibleIdx = $this->selectCard($eligibleCards);
+                $eligibleIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
                 $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
             }
         } else {
-            $suit = $cardsPlayed[0]->getSuit();
+            $suit = $cardsPlayedThisTrick[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
-            $eligibleIdx = $this->selectCard($eligibleCards);
+            $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick);
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
         }
 
@@ -61,7 +64,7 @@ class Player extends BaseProcess {
 
     public function getCardsToPass($dirLabel)
     {
-        return $this->hand->getCardsToPass(Selector::selectCardsToPass($this->hand->getCards()));
+        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards()]));
     }
 
     public function addCards($c)
@@ -69,9 +72,22 @@ class Player extends BaseProcess {
         return $this->hand->addCards($c);
     }
 
-    protected function selectCard($eligibleCards)
+    protected function selectCard($eligibleCards, $isFirstTrick)
     {
-        return Selector::selectCard($eligibleCards);
+        return Selector::selectCard([
+            'eligibleCards' => $eligibleCards,
+            'isFirstTrick' => $isFirstTrick,
+            'handStrategy' => $this->handStrategy,
+        ]);
+    }
+
+    protected function selectLeadCard($eligibleCards, $isFirstTrick)
+    {
+        return Selector::selectLeadCard([
+            'eligibleCards' => $eligibleCards,
+            'isFirstTrick' => $isFirstTrick,
+            'handStrategy' => $this->handStrategy,
+        ]);
     }
 
     public function gatherInfo($info)

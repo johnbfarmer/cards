@@ -23,12 +23,7 @@ class Hand extends BaseProcess {
 
     public function show()
     {
-        $str = '';
-        foreach ($this->cards as $c) {
-            $str .= $c->getDisplay() . ' ';
-        }
-
-        $this->writeln("$str\n");
+        $this->showCards($this->cards);
     }
 
     public function remove($idx)

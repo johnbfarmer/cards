@@ -13,13 +13,9 @@ class Selector extends BaseProcess {
     const STRATEGIES_ROUND = ['avoidPoints', 'shootTheMoon', 'blockShootTheMoon', 'protectOther', 'attackOther'];
     const STRATEGIES_TRICK = ['highestNoTake', 'takeHigh', 'takeLow', 'dumpLow'];
 
-    public function __construct()
+    public static function selectCard($data)
     {
-        
-    }
-
-    public static function selectCard($eligibleCards)
-    {
+        $eligibleCards = $data['eligibleCards'];
         if (count($eligibleCards) === 1) {
             return 0;
         }
@@ -29,7 +25,7 @@ class Selector extends BaseProcess {
         foreach($eligibleCards as $idx => $c) {
             if (is_null($suit)) {
                 $suit = $c->getSuit();
-                $eligibleIdx = $idx; // we may need this yet
+                $eligibleIdx = $idx; // tbi
             }
             if ($c->getSuit() !== $suit) {
                 $singleSuit = false;
@@ -37,14 +33,37 @@ class Selector extends BaseProcess {
             }
         }
         if ($singleSuit) {
+            if ($data['isFirstTrick']) {
+                return count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
+            }
             return 0;//$eligibleIdx;
         }
 
         return rand(0, count($eligibleCards) - 1);
     }
 
-    public static function selectCardsToPass($cards)
+    public static function selectLeadCard($data)
     {
+        $eligibleCards = $data['eligibleCards'];
+        if (count($eligibleCards) === 1) {
+            return 0;
+        }
+
+        $sortedEligibleCards = self::mostDangerous($eligibleCards, count($eligibleCards));
+
+        switch ($data['handStrategy']) {
+            case self::STRATEGIES_ROUND[0]:
+                return array_keys($sortedEligibleCards)[0];
+                return array_keys($sortedEligibleCards)[count($sortedEligibleCards) - 1];
+            default:
+                return rand(0, count($eligibleCards) - 1);
+        }
+
+    }
+
+    public static function selectCardsToPass($data)
+    {
+        $cards = $data['hand'];
         $strategy = self::getStrategy($cards);
 
         switch ($strategy) {

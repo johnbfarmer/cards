@@ -31,6 +31,16 @@ class BaseProcess
         
     }
 
+    public function showCards($cards, $intro='')
+    {
+        $str = $intro;
+        foreach ($cards as $c) {
+            $str .= $c->getDisplay() . ' ';
+        }
+
+        $this->writeln("$str\n");
+    }
+
     protected function writeln($msg)
     {
         if ($this->output) {
