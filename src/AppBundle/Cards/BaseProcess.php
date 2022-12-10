@@ -31,10 +31,18 @@ class BaseProcess
         
     }
 
-    public function showCards($cards, $intro='')
+    public function showCards($cards, $intro='', $breakEachSuitChange=false)
     {
         $str = $intro;
+        $prevSuit = '';
         foreach ($cards as $c) {
+            if ($breakEachSuitChange) {
+                $suit = $c->getSuit();
+                if ($prevSuit !== '' && $prevSuit !== $suit) {
+                    $str .= " |  ";
+                }
+                $prevSuit = $suit;
+            }
             $str .= $c->getDisplay() . ' ';
         }
 
