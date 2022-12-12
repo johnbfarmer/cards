@@ -4,8 +4,11 @@ namespace AppBundle\Cards;
 
 class Player extends BaseProcess {
     protected $hand;
+    protected $id;
     protected $name;
-    protected $score = 0;
+    protected $myScore = 0;
+    protected $gameScores = [];
+    protected $roundScores = [];
     protected $cardPlayed;
     protected $cardsPlayedThisRound = [];
     protected $handStrategy;
@@ -16,6 +19,7 @@ class Player extends BaseProcess {
             $name = 'Player ' . $id;
         }
 
+        $this->id = $id;
         $this->name = $name;
     }
 
@@ -39,7 +43,7 @@ class Player extends BaseProcess {
 
     public function report()
     {
-        $this->writeln($this->name . ' has ' . $this->score . ' points.');
+        $this->writeln($this->name . ' has ' . $this->myScore . ' points.');
     }
 
     public function playCard($cardsPlayedThisTrick, $isBrokenHearts, $isFirstTrick)
@@ -53,7 +57,8 @@ class Player extends BaseProcess {
                 $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
             }
         } else {
-            $suit = $cardsPlayedThisTrick[0]->getSuit();
+            $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
+            // $suit = $cardsPlayedThisTrick[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
             $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick);
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
@@ -92,9 +97,63 @@ class Player extends BaseProcess {
 
     public function gatherInfo($info)
     {
-        if (isset($info['cardsPlayed'])) {
-            $this->cardsPlayedThisRound = array_merge($this->cardsPlayedThisRound, $info['cardsPlayed']);
+        $leadSuit = null;
+        $topValue = null;
+        $this->gameScores = !empty($info['scores']) ? $info['scores'] : $this->gameScores;
+        if (!empty($info['scores'])) {
+            foreach ($this->gameScores as $id => $score) {
+                $this->roundScores[$id] = 0;
+            }
         }
+
+        foreach ($info['cardsPlayed'] as $id => $c) {
+            if (empty($this->cardsPlayedThisRound[$id])) {
+                $this->cardsPlayedThisRound[$id] = [];
+            }
+            $this->cardsPlayedThisRound[$id][] = $c;
+            if (is_null($leadSuit)) {
+                $leadSuit = $c->getSuit();
+                $topValue = $c->getValue();
+                $takesTrick = $id;
+                $points = 0;
+if ($this->id === 4) {
+    print "leadSuit is $leadSuit takesTrick is $takesTrick value is $topValue\n";
+}
+            }
+            $suit = $c->getSuit();
+            $value = $c->getValue();
+            if ($suit === 2) {
+                $points++;
+            }
+            if ($suit === 3 && $value == 10) {
+                $points += 13;
+            }
+            if ($suit === $leadSuit && $value > $topValue) {
+                $takesTrick = $id;
+if ($this->id === 4) {
+    print "takesTrick now $takesTrick cuz $value > $topValue\n";
+}
+                $topValue = $value;
+            }
+        }
+        $this->gameScores[$takesTrick] += $points;
+        $this->roundScores[$takesTrick] += $points;
+if ($this->id === 4) {
+print "takes trick: $takesTrick\n";
+    foreach($info['cardsPlayed'] as $id => $c) {
+        print " $id played " . $c->getDisplay();
+    }
+    print "\n";
+    var_dump($this->gameScores);
+    var_dump($this->roundScores);
+    foreach ($this->cardsPlayedThisRound as $id => $crds) {
+        print " $id(" . $this->gameScores[$id] . "):";
+        foreach ($crds as $c) {
+            print " " . $c->getDisplay();
+        }
+    }
+    print "\n";
+}
     }
 
     public function hasCards()
@@ -109,12 +168,17 @@ class Player extends BaseProcess {
 
     public function addPoints($pts)
     {
-        $this->score += $pts;
+        $this->myScore += $pts;
     }
 
-    public function getScore()
+    public function getMyScore()
     {
-        return $this->score;
+        return $this->myScore;
+    }
+
+    public function getId()
+    {
+        return $this->id;
     }
 
     public function getName()

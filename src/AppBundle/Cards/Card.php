@@ -7,7 +7,7 @@ class Card  extends BaseProcess{
     protected $value;
     protected $sortOrder;
     protected $idx;
-    protected static $suits = ['♥', '♠', '♦', '♣'];
+    protected static $suits = ['♣', '♦', '♥', '♠'];
     protected static $faces = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
 
     public function __construct($idx)

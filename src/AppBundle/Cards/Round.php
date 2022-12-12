@@ -7,7 +7,7 @@ class Round extends BaseProcess {
     protected $numberOfCardsToDeal = 13;
     protected $isStarting = true;
     protected $deck;
-    protected $scores;
+    protected $scores = [];
     protected $players;
     protected $roundCount = 1;
     protected $roundOver = false;
@@ -26,7 +26,7 @@ class Round extends BaseProcess {
 
     public function start()
     {
-        for ($i = 0; $i < $this->numberOfPlayers; $i++) {
+        for ($i = 1; $i <= $this->numberOfPlayers; $i++) {
             $hand = new Hand($this->deck->deal($this->numberOfCardsToDeal));
             $this->players[$i]->addHand($hand);
             $this->players[$i]->showHand();
@@ -34,9 +34,9 @@ class Round extends BaseProcess {
 
         $this->passCards();
 
-        foreach ($this->players as $i => $p) {
+        foreach ($this->players as $p) {
             if ($p->hasCard(0)) {
-                $this->leadPlayer = $i;
+                $this->leadPlayer = $p->getId();
             }
         }
     }
@@ -49,6 +49,7 @@ class Round extends BaseProcess {
             'leadPlayer' => $this->leadPlayer,
             'isBrokenHearts' => $this->isBrokenHearts,
             'isFirstTrick' => $this->isStarting,
+            'scores' => $this->scores,
         ]);
         $trick->play();
         $this->handleTrickResult($trick);
@@ -71,9 +72,26 @@ class Round extends BaseProcess {
 
     public function getScores()
     {
-        $scores = empty($this->scores) ? [0,0,0,0] : $this->scores;
-        foreach($this->players as $i => $player) {
-            $scores[$i] = $player->getScore();
+        $scores = empty($this->scores) ? [] : $this->scores;
+        foreach($this->players as $player) {
+            $scores[$player->getId()] = $player->getMyScore();
+        }
+        // check to see if anyone shot the moon
+        $shotTheMoon = null;
+        foreach ($scores as $id => $score) {
+            if ($score === 26) {
+                $shotTheMoon = $id;
+            }
+        }
+
+        if ($shotTheMoon) {
+            foreach ($scores as $id => $score) {
+                if ($id === $shotTheMoon) {
+                    $scores[$id] = 0;
+                } else {
+                    $scores[$id] = 26;
+                }
+            }
         }
 
         return $scores;
@@ -84,8 +102,8 @@ class Round extends BaseProcess {
         $trick->show();
         $this->players = $trick->getPlayers();
         $cards = $trick->getCardsPlayed();
-        $leadSuit = $cards[0]->getSuit();
-        $topValue = $cards[0]->getValue();
+        $leadSuit = array_values($cards)[0]->getSuit();
+        $topValue = array_values($cards)[0]->getValue();
         $takesTrick = $this->leadPlayer;
         $points = 0;
         foreach($cards as $idx => $card) {
@@ -100,7 +118,8 @@ class Round extends BaseProcess {
             }
             if ($suit === $leadSuit && $value > $topValue) {
                 $topValue = $value;
-                $takesTrick = ($this->leadPlayer + $idx) % $this->numberOfPlayers;
+                $takesTrick = $idx;
+                // $takesTrick = ($this->leadPlayer + $idx) % $this->numberOfPlayers;
             }
         }
 
@@ -125,13 +144,13 @@ class Round extends BaseProcess {
         foreach ($this->players as $i => $p) {
             switch ($dirLabel) {
                 case 'left':
-                    $j = ($i + 3) % 4;
+                    $j = $i === 1 ? 4 : ($i + 3) % 4; // 1->2, 3->4, 4->1
                     break;
                 case 'right':
-                    $j = ($i + 1) % 4;
+                    $j = $i === 3 ? 4 : ($i + 1) % 4;
                     break;
                 default:
-                    $j = ($i + 2) % 4;
+                    $j = $i === 2 ? 4 : ($i + 2) % 4;
                     break;
             }
 

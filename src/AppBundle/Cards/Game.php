@@ -25,7 +25,8 @@ class Game extends BaseProcess {
     public function createPlayers()
     {
         for ($i = 1; $i <= $this->numberOfPlayers; $i++) {
-            $this->players[] = new Player($i, $this->names[$i-1]);
+            $this->players[$i] = new Player($i, $this->names[$i-1]);
+            $this->scores[$i] = 0;
         }
     }
 
@@ -73,7 +74,7 @@ class Game extends BaseProcess {
 
         if ($maxScore >= $this->maxScore) {
             foreach ($this->players as $player) {
-                if ($player->getScore() === $minScore) {
+                if ($player->getMyScore() === $minScore) {
                     $winners[] = $player->getName();
                 }
             }
