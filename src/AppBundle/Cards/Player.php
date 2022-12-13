@@ -23,10 +23,10 @@ class Player extends BaseProcess {
         $this->name = $name;
     }
 
-    public function addHand($hand)
+    public function addHand($hand, $isHoldHand)
     {
         $this->hand = $hand;
-        $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $this->gameScores);
+        $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
 if ($this->handStrategy === 'shootTheMoon') {
     print $this->name . ' says I shall shoot the moon'."\n";
 }

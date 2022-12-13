@@ -16,11 +16,12 @@ class Selector extends BaseProcess {
     public static function selectCard($data)
     {
         $eligibleCards = $data['eligibleCards'];
+        $handStrategy = $data['handStrategy'];
         if (count($eligibleCards) === 1) {
             return 0;
         }
 
-        $singleSuit = true;
+        $allEligibleAreSameSuit = true;
         $suit = null;
         foreach($eligibleCards as $idx => $c) {
             if (is_null($suit)) {
@@ -28,13 +29,13 @@ class Selector extends BaseProcess {
                 $eligibleIdx = $idx; // tbi
             }
             if ($c->getSuit() !== $suit) {
-                $singleSuit = false;
+                $allEligibleAreSameSuit = false;
                 break;
             }
         }
-        if ($singleSuit) {
+        if ($allEligibleAreSameSuit) {
             if ($data['isFirstTrick']) {
-                return count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
+                return $handStrategy === 'shootTheMoon' ? 0 : count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
             }
             return 0;//$eligibleIdx;
         }
@@ -72,10 +73,50 @@ class Selector extends BaseProcess {
             case self::STRATEGIES_ROUND[1]:
                 return self::selectCardsToPassForShootingTheMoon($cards);
             default:
-                $ret = self::mostDangerous($cards, 3);
-                arsort($ret); // if we don't reverse sort, as we pluck out the cards, the indexes will be wrong.
-                return $ret;
+                return self::selectCardsToPassForAvoidingPoints($cards);
         }
+    }
+
+    protected static function selectCardsToPassForAvoidingPoints($cards)
+    {
+        $h = [];
+        foreach ($cards as $idx => $c) {
+            $s = $c->getSuit();
+            $v = $c->getValue();
+            $dspl = $c->getDisplay();
+            if (empty($h[$s])) {
+                $h[$s] = [];
+            }
+            $h[$s][] = ['v' => $v, 'i' => $idx, 'd' => $dspl, 'danger' => 0];
+        }
+
+        foreach ($h as $suit => $arr) {
+            $h[$suit] = self::calculateDangerForAvoidingPoints($suit, $arr);
+        }
+
+        $sorted = [];
+
+        foreach ($h as $suit => $arr) {
+            foreach ($arr as $thing1) {
+                $insertIndex = 0;
+                foreach ($sorted as $i => $thing2) {
+                    if ($thing1['danger'] < $thing2['danger']) {
+                        $insertIndex = $i + 1;
+                    }
+                }
+                array_splice($sorted, $insertIndex, 0, [$thing1]);
+            }
+        }
+        $indexes = [];
+        $ct = 0;
+        foreach ($sorted as $thing2) {
+            if ($ct++ < 3) {
+                $indexes[] = $thing2['i'];
+            }
+        }
+        arsort($indexes);
+
+        return $indexes;
     }
 
     protected static function selectCardsToPassForShootingTheMoon($cards, $all = false)
@@ -88,11 +129,11 @@ class Selector extends BaseProcess {
             if (empty($h[$s])) {
                 $h[$s] = [];
             }
-            $h[$s][] = ['v' => $v, 'i' => $idx, 'd' => $dspl];
+            $h[$s][] = ['v' => $v, 'i' => $idx, 'd' => $dspl, 'danger' => 0];
         }
 
         foreach ($h as $suit => $arr) {
-            $h[$suit] = self::calculateDanger($suit, $arr);
+            $h[$suit] = self::calculateDangerForShootingTheMoon($suit, $arr);
         }
 
         $sorted = [];
@@ -123,7 +164,53 @@ class Selector extends BaseProcess {
         return $indexes;
     }
 
-    protected static function calculateDanger($suit, $arr)
+    protected static function calculateDangerForAvoidingPoints($suit, $arr)
+    {
+        switch ($suit) {
+            case 3:
+                foreach ($arr as $idx => $vi) {
+                    $arr[$idx]['danger'] = $vi['v'] === 10 && count($arr) < 4 ? 1000 : ($vi['v'] >= 10 && count($arr) < 3 ? 900 + $vi['v'] : 0);
+                }
+                return $arr;
+            case 0:
+                $hasTheTwo = false;
+                foreach ($arr as $idx => $vi) {
+                    if (!$vi['v']) {
+                        $hasTheTwo = true;
+                    }
+                }
+                if ($hasTheTwo) {
+                    $base = 0;
+                    $ct = 0;
+                    foreach ($arr as $idx => $vi) {
+                        if ($ct++ < 4) {
+                            $base += $vi['v'] - $idx;
+                        }
+                    }
+                    foreach ($arr as $idx => $vi) {
+                        $arr[$idx]['danger'] = $base * ($vi['v'] - $idx);
+                    }
+                    return $arr;
+                }
+            default:
+                $base = 0;
+                $ct = 0;
+                foreach ($arr as $idx => $vi) {
+                    if ($ct++ < 3) {
+                        $base += $vi['v'] - $idx;
+                    }
+                }
+                if ($suit === 2) {
+                    $base *= 2;
+                }
+                foreach ($arr as $idx => $vi) {
+                    $arr[$idx]['danger'] = $base * ($vi['v'] - $idx);
+                }
+                return $arr;
+        }
+    }
+
+    protected static function calculateDangerForShootingTheMoon($suit, $arr)
     {
         rsort($arr);
         switch ($suit) {
@@ -167,20 +254,21 @@ class Selector extends BaseProcess {
         }
     }
 
-    public static function getRoundStrategy($cards, $scores)
+    public static function getRoundStrategy($cards, $isHoldHand, $scores)
     {
-        if (self::shouldShootTheMoon($cards, $scores)) {
+        if (self::shouldShootTheMoon($cards, $isHoldHand, $scores)) {
             return self::STRATEGIES_ROUND[1];
         }
         return self::STRATEGIES_ROUND[0];
     }
 
-    public static function shouldShootTheMoon($cards, $scores)
+    public static function shouldShootTheMoon($cards, $isHoldHand, $scores)
     {
         $crds = self::selectCardsToPassForShootingTheMoon($cards, true);
         $ct = 0;
+        $numberOfCardsToPass = $isHoldHand ? 0 : 3;
         foreach ($crds as $c) {
-            if ($ct++ > 2 && $c['danger'] > 100) {
+            if (++$ct >  $numberOfCardsToPass && $c['danger'] > 100) {
                 return false;
             }
         }

@@ -13,6 +13,7 @@ class Round extends BaseProcess {
     protected $roundOver = false;
     protected $leadPlayer = 0;
     protected $isBrokenHearts = false;
+    protected $passDirection;
 
     public function __construct($params)
     {
@@ -26,9 +27,10 @@ class Round extends BaseProcess {
 
     public function start()
     {
+        $this->passDirection = $this->getPassDirection();
         for ($i = 1; $i <= $this->numberOfPlayers; $i++) {
             $hand = new Hand($this->deck->deal($this->numberOfCardsToDeal));
-            $this->players[$i]->addHand($hand);
+            $this->players[$i]->addHand($hand, $this->passDirection === 'hold');
             $this->players[$i]->showHand();
         }
 
@@ -130,19 +132,18 @@ class Round extends BaseProcess {
 
     protected function passCards()
     {
-        $dirLabel = $this->getPassDirectionLabel();
-        $this->writeln($dirLabel === 'hold' ? 'We do not pass this round' : 'We pass 3 cards ' . $dirLabel . '...');
-        if ($dirLabel === 'hold') {
+        $this->writeln($this->passDirection === 'hold' ? 'We do not pass this round' : 'We pass 3 cards ' . $this->passDirection . '...');
+        if ($this->passDirection === 'hold') {
             return;
         }
 
         $cardsInTransition = [];
         foreach ($this->players as $i => $p) {
-            $cardsInTransition[$i] = $p->getCardsToPass($dirLabel);
+            $cardsInTransition[$i] = $p->getCardsToPass($this->passDirection);
         }
 
         foreach ($this->players as $i => $p) {
-            switch ($dirLabel) {
+            switch ($this->passDirection) {
                 case 'left':
                     $j = $i === 1 ? 4 : ($i + 3) % 4; // 1->2, 3->4, 4->1
                     break;
@@ -160,7 +161,7 @@ class Round extends BaseProcess {
         }
     }
 
-    protected function getPassDirectionLabel()
+    protected function getPassDirection()
     {
         $a = ['left', 'right', 'across', 'hold'];
         return $a[($this->roundCount - 1) % 4];
