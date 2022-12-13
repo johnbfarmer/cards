@@ -26,7 +26,10 @@ class Player extends BaseProcess {
     public function addHand($hand)
     {
         $this->hand = $hand;
-        $this->handStrategy = Selector::getStrategy(['hand' => $hand]);
+        $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $this->gameScores);
+if ($this->handStrategy === 'shootTheMoon') {
+    print $this->name . ' says I shall shoot the moon'."\n";
+}
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
     }
@@ -69,7 +72,7 @@ class Player extends BaseProcess {
 
     public function getCardsToPass($dirLabel)
     {
-        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards()]));
+        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards(), 'scores' => $this->gameScores, 'strategy' => $this->handStrategy]));
     }
 
     public function addCards($c)
@@ -116,9 +119,6 @@ class Player extends BaseProcess {
                 $topValue = $c->getValue();
                 $takesTrick = $id;
                 $points = 0;
-if ($this->id === 4) {
-    print "leadSuit is $leadSuit takesTrick is $takesTrick value is $topValue\n";
-}
             }
             $suit = $c->getSuit();
             $value = $c->getValue();
@@ -130,30 +130,11 @@ if ($this->id === 4) {
             }
             if ($suit === $leadSuit && $value > $topValue) {
                 $takesTrick = $id;
-if ($this->id === 4) {
-    print "takesTrick now $takesTrick cuz $value > $topValue\n";
-}
                 $topValue = $value;
             }
         }
         $this->gameScores[$takesTrick] += $points;
         $this->roundScores[$takesTrick] += $points;
-if ($this->id === 4) {
-print "takes trick: $takesTrick\n";
-    foreach($info['cardsPlayed'] as $id => $c) {
-        print " $id played " . $c->getDisplay();
-    }
-    print "\n";
-    var_dump($this->gameScores);
-    var_dump($this->roundScores);
-    foreach ($this->cardsPlayedThisRound as $id => $crds) {
-        print " $id(" . $this->gameScores[$id] . "):";
-        foreach ($crds as $c) {
-            print " " . $c->getDisplay();
-        }
-    }
-    print "\n";
-}
     }
 
     public function hasCards()
