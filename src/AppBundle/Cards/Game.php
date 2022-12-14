@@ -13,7 +13,7 @@ class Game extends BaseProcess {
     protected $roundCount = 1;
     protected $gameOver = false;
     protected $winner = 'nobody';
-    protected $names = ['Dilbert', 'Ululua', 'Sally', 'The Great Mr X'];
+    protected $names = ['Dilbert', 'Ululua', 'Sally', 'Smelch'];
 
     public function __construct($params)
     {
@@ -49,6 +49,7 @@ class Game extends BaseProcess {
             while ($this->round->play());
 
             $this->scores = $this->round->getScores();
+            $this->round->report();
 
             if ($this->checkGameOver()) {
                 $this->endGame();
@@ -73,11 +74,16 @@ class Game extends BaseProcess {
         }
 
         if ($maxScore >= $this->maxScore) {
-            foreach ($this->players as $player) {
-                if ($player->getMyScore() === $minScore) {
-                    $winners[] = $player->getName();
+            foreach ($this->scores as $playerId => $score) {
+                if ($score === $minScore) {
+                    $winners[] = $this->players[$playerId]->getName();
                 }
             }
+            // foreach ($this->players as $player) {
+            //     if ($player->getMyScore() === $minScore) {
+            //         $winners[] = $player->getName();
+            //     }
+            // }
 
             if (count($winners) === 1) {
                 $this->winner = $winners[0];

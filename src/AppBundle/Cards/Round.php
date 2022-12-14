@@ -7,7 +7,8 @@ class Round extends BaseProcess {
     protected $numberOfCardsToDeal = 13;
     protected $isStarting = true;
     protected $deck;
-    protected $scores = [];
+    protected $roundScores = [];
+    protected $gameScores = [];
     protected $players;
     protected $roundCount = 1;
     protected $roundOver = false;
@@ -20,7 +21,13 @@ class Round extends BaseProcess {
         $this->deck = new Deck();
         $this->numberOfPlayers = $params['numberOfPlayers'];
         $this->numberOfCardsToDeal = $params['numberOfCardsToDeal'];
-        $this->scores = $params['scores'];
+        $this->gameScores = $params['scores'];
+        $this->roundScores = $params['scores'];
+        foreach ($this->roundScores as $id => $score) {
+            $this->roundScores[$id] = 0;
+        }
+var_dump('scgr '.json_encode($this->gameScores));
+var_dump('scr '.json_encode($this->roundScores));
         $this->players = $params['players'];
         $this->roundCount = $params['roundCount'];
     }
@@ -51,33 +58,36 @@ class Round extends BaseProcess {
             'leadPlayer' => $this->leadPlayer,
             'isBrokenHearts' => $this->isBrokenHearts,
             'isFirstTrick' => $this->isStarting,
-            'scores' => $this->scores,
+            'gameScores' => $this->gameScores,
+            'roundScores' => $this->roundScores,
         ]);
         $trick->play();
         $this->handleTrickResult($trick);
         $this->isStarting = false;
 
         $isOver = $trick->getRoundOver();
-        if ($isOver) {
-            $this->report();
-        }
-        return !$isOver;
+        // if ($isOver) {
+        //     $this->report();
+        // }
+        return !$trick->getRoundOver();
+        // return !$isOver;
     }
 
     public function report()
     {
         $this->writeln('At the end of round ' . $this->roundCount . ', the score is: ');
-        foreach($this->players as $player) {
-            $player->report();
+        foreach($this->players as $playerId => $player) {
+            $this->writeln($player->getName() . ' has ' . $this->gameScores[$playerId] . ' points.');
         }
     }
 
     public function getScores()
     {
-        $scores = empty($this->scores) ? [] : $this->scores;
-        foreach($this->players as $player) {
-            $scores[$player->getId()] = $player->getMyScore();
-        }
+        // $scores = empty($this->scores) ? [] : $this->scores;
+        $scores = $this->roundScores;
+        // foreach($this->players as $player) {
+        //     $scores[$player->getId()] = $player->getMyScore();
+        // }
         // check to see if anyone shot the moon
         $shotTheMoon = null;
         foreach ($scores as $id => $score) {
@@ -87,6 +97,7 @@ class Round extends BaseProcess {
         }
 
         if ($shotTheMoon) {
+            $this->writeln($this->players[$shotTheMoon]->getName() . ' SHOT THE MOON!!.');
             foreach ($scores as $id => $score) {
                 if ($id === $shotTheMoon) {
                     $scores[$id] = 0;
@@ -96,7 +107,11 @@ class Round extends BaseProcess {
             }
         }
 
-        return $scores;
+        foreach ($scores as $id => $score) {
+            $this->gameScores[$id] += $score;
+        }
+var_dump('scgr2 '.json_encode($this->gameScores));
+        return $this->gameScores;
     }
 
     protected function handleTrickResult($trick)
@@ -121,11 +136,12 @@ class Round extends BaseProcess {
             if ($suit === $leadSuit && $value > $topValue) {
                 $topValue = $value;
                 $takesTrick = $idx;
-                // $takesTrick = ($this->leadPlayer + $idx) % $this->numberOfPlayers;
             }
         }
 
-        $this->players[$takesTrick]->addPoints($points);
+        // $this->players[$takesTrick]->addPoints($points);
+        $this->roundScores[$takesTrick] += $points;
+var_dump('scr2 '.json_encode($this->roundScores));
         $this->leadPlayer = $takesTrick;
         $this->writeln($points . ' for ' . $this->players[$takesTrick]->getName());
     }

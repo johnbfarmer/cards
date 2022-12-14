@@ -9,7 +9,7 @@ class Trick extends BaseProcess {
     protected $isBrokenHearts;
     protected $roundOver = false;
     protected $cardsPlayed = [];
-    protected $scores;
+    protected $gameScores;
 
     public function __construct($params)
     {
@@ -18,7 +18,8 @@ class Trick extends BaseProcess {
         $this->leadPlayer = $params['leadPlayer'];
         $this->isBrokenHearts = $params['isBrokenHearts'];
         $this->isFirstTrick = $params['isFirstTrick'];
-        $this->scores = $params['scores'];
+        $this->gameScores = $params['gameScores'];
+        $this->roundScores = $params['roundScores'];
     }
 
     protected function getPlayerOrder()
@@ -51,7 +52,7 @@ class Trick extends BaseProcess {
         }
 
         foreach($this->players as $p) {
-            $p->gatherInfo(['cardsPlayed' => $this->cardsPlayed, 'scores' => $this->isFirstTrick ? $this->scores : null]);
+            $p->gatherInfo(['cardsPlayed' => $this->cardsPlayed, 'scores' => $this->isFirstTrick ? $this->gameScores : null]);
         }
 
         return $this->roundOver;
