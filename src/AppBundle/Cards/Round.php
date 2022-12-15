@@ -26,8 +26,6 @@ class Round extends BaseProcess {
         foreach ($this->roundScores as $id => $score) {
             $this->roundScores[$id] = 0;
         }
-var_dump('scgr '.json_encode($this->gameScores));
-var_dump('scr '.json_encode($this->roundScores));
         $this->players = $params['players'];
         $this->roundCount = $params['roundCount'];
     }
@@ -110,7 +108,7 @@ var_dump('scr '.json_encode($this->roundScores));
         foreach ($scores as $id => $score) {
             $this->gameScores[$id] += $score;
         }
-var_dump('scgr2 '.json_encode($this->gameScores));
+
         return $this->gameScores;
     }
 
@@ -139,9 +137,7 @@ var_dump('scgr2 '.json_encode($this->gameScores));
             }
         }
 
-        // $this->players[$takesTrick]->addPoints($points);
         $this->roundScores[$takesTrick] += $points;
-var_dump('scr2 '.json_encode($this->roundScores));
         $this->leadPlayer = $takesTrick;
         $this->writeln($points . ' for ' . $this->players[$takesTrick]->getName());
     }

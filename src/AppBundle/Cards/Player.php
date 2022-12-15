@@ -12,6 +12,7 @@ class Player extends BaseProcess {
     protected $cardPlayed;
     protected $cardsPlayedThisRound = [];
     protected $handStrategy;
+    protected $trickStrategy;
 
     public function __construct($id, $name = null)
     {
@@ -51,6 +52,7 @@ if ($this->handStrategy === 'shootTheMoon') {
 
     public function playCard($cardsPlayedThisTrick, $isBrokenHearts, $isFirstTrick)
     {
+        $this->trickStrategy = 'highestNoTake';
         if (empty($cardsPlayedThisTrick)) {
             if ($isFirstTrick && $this->hasCard(0)) {
                 $cardToPlayIdx = 0;
@@ -61,9 +63,8 @@ if ($this->handStrategy === 'shootTheMoon') {
             }
         } else {
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
-            // $suit = $cardsPlayedThisTrick[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
-            $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick);
+            $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
         }
 
@@ -72,7 +73,7 @@ if ($this->handStrategy === 'shootTheMoon') {
 
     public function getCardsToPass($dirLabel)
     {
-        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards(), 'scores' => $this->gameScores, 'strategy' => $this->handStrategy]));
+        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards(), 'gameScores' => $this->gameScores, 'strategy' => $this->handStrategy]));
     }
 
     public function addCards($c)
@@ -80,12 +81,15 @@ if ($this->handStrategy === 'shootTheMoon') {
         return $this->hand->addCards($c);
     }
 
-    protected function selectCard($eligibleCards, $isFirstTrick)
+    protected function selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick)
     {
         return Selector::selectCard([
             'eligibleCards' => $eligibleCards,
             'isFirstTrick' => $isFirstTrick,
+            'cardsPlayedThisTrick' => $cardsPlayedThisTrick,
             'handStrategy' => $this->handStrategy,
+            'trickStrategy' => $this->trickStrategy,
+            'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
         ]);
     }
 
@@ -95,6 +99,7 @@ if ($this->handStrategy === 'shootTheMoon') {
             'eligibleCards' => $eligibleCards,
             'isFirstTrick' => $isFirstTrick,
             'handStrategy' => $this->handStrategy,
+            'trickStrategy' => $this->trickStrategy,
         ]);
     }
 
@@ -102,8 +107,8 @@ if ($this->handStrategy === 'shootTheMoon') {
     {
         $leadSuit = null;
         $topValue = null;
-        $this->gameScores = !empty($info['scores']) ? $info['scores'] : $this->gameScores;
-        if (!empty($info['scores'])) {
+        $this->gameScores = !empty($info['gameScores']) ? $info['gameScores'] : $this->gameScores;
+        if (!empty($info['gameScores'])) {
             foreach ($this->gameScores as $id => $score) {
                 $this->roundScores[$id] = 0;
             }

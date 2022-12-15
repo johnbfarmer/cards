@@ -3,13 +3,6 @@
 namespace AppBundle\Cards;
 
 class Selector extends BaseProcess {
-    protected $hand;
-    protected $trick;
-    protected $round;
-    protected $attemptToShootTheMoon = false;
-    protected $scores = [];
-    protected $strategyRound = 'avoidPoints';
-    protected $strategyTrick = 'highestNoTake';
     const STRATEGIES_ROUND = ['avoidPoints', 'shootTheMoon', 'blockShootTheMoon', 'protectOther', 'attackOther'];
     const STRATEGIES_TRICK = ['highestNoTake', 'takeHigh', 'takeLow', 'dumpHigh', 'dumpLow'];
 
@@ -17,30 +10,37 @@ class Selector extends BaseProcess {
     {
         $eligibleCards = $data['eligibleCards'];
         $handStrategy = $data['handStrategy'];
+        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         if (count($eligibleCards) === 1) {
             return 0;
         }
 
-        $allEligibleAreSameSuit = true;
-        $suit = null;
-        foreach($eligibleCards as $idx => $c) {
-            if (is_null($suit)) {
-                $suit = $c->getSuit();
-                $eligibleIdx = $idx; // tbi
-            }
-            if ($c->getSuit() !== $suit) {
-                $allEligibleAreSameSuit = false;
-                break;
-            }
-        }
-        if ($allEligibleAreSameSuit) {
+        if (self::allSameSuit($eligibleCards)) {
             if ($data['isFirstTrick']) {
                 return $handStrategy === 'shootTheMoon' ? 0 : count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
             }
-            return 0;//$eligibleIdx;
+            return self::getIdxBestCardAvailableFollowSuit($data);
         }
 
-        return rand(0, count($eligibleCards) - 1);
+        return self::getIdxBestCardAvailable($data);
+    }
+
+    public static function allSameSuit($cards)
+    {
+        $allAreSameSuit = true;
+        $suit = null;
+        foreach($cards as $idx => $c) {
+            if (is_null($suit)) {
+                $suit = $c->getSuit();
+            }
+            if ($c->getSuit() !== $suit) {
+                $allAreSameSuit = false;
+                break;
+            }
+        }
+
+        return $allAreSameSuit;
     }
 
     public static function selectLeadCard($data)
@@ -62,12 +62,73 @@ class Selector extends BaseProcess {
 
     }
 
+    public static function getIdxBestCardAvailable($data)
+    {
+        $eligibleCards = $data['eligibleCards'];
+        $handStrategy = $data['handStrategy'];
+        $trickStrategy = $data['trickStrategy'];
+        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $idxToReturn = 0;
+        switch($trickStrategy) {
+            case 'highestNoTake':
+            default:
+                $suit = null;
+                $highestVal = -1;
+                $takingTrick = 0;
+                foreach ($cardsPlayedThisTrick as $playerId => $c) {
+                    if (is_null($suit)) {
+                        $suit = $c->getSuit();
+                    }
+                    if ($c->getSuit() === $suit && $c->getValue() > $highestVal) {
+                        $highestVal = $c->getValue();
+                        $takingTrick = $playerId;
+                    }
+                }
+
+                // we do not have to follow suit, so throw most dangerous
+                return self::mostDangerous($eligibleCards, 1)[0];
+        }
+    }
+
+    public static function getIdxBestCardAvailableFollowSuit($data)
+    {
+        $eligibleCards = $data['eligibleCards'];
+        $handStrategy = $data['handStrategy'];
+        $trickStrategy = $data['trickStrategy'];
+        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $idxToReturn = -1;
+        switch($trickStrategy) {
+            case 'highestNoTake':
+            default:
+                $suit = null;
+                $highestVal = -1;
+                $takingTrick = 0;
+                foreach ($cardsPlayedThisTrick as $playerId => $c) {
+                    if (is_null($suit)) {
+                        $suit = $c->getSuit();
+                    }
+                    if ($c->getSuit() === $suit && $c->getValue() > $highestVal) {
+                        $highestVal = $c->getValue();
+                        $takingTrick = $playerId;
+                    }
+                }
+                foreach ($eligibleCards as $cardIdx => $c) {
+                    if ($c->getValue() < $highestVal) {
+                        $idxToReturn++;
+                    }
+                }
+                return max($idxToReturn, 0);
+        }
+    }
+
     // return hand indices in reverse order of 3 cards to pass
     public static function selectCardsToPass($data)
     {
         $cards = $data['hand'];
-        $scores = $data['scores'];
-        $strategy = $data['strategy']; // self::getRoundStrategy($cards, $scores);
+        $scores = $data['gameScores'];
+        $strategy = $data['strategy'];
 
         switch ($strategy) {
             case self::STRATEGIES_ROUND[1]:
