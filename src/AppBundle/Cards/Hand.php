@@ -91,13 +91,15 @@ class Hand extends BaseProcess {
 
         if (empty($eligible)) {
             if ($isFirstTrick) {
-                $cards = $this->cards;
+                // $cards = $this->cards;
                 $eligible = [];
-                foreach($cards as $c) {
-                    if ($c->getSuit() === 2 || ($c->getSuit() === 2 && $c->getValue() === 10)) {
+                foreach($this->cards as $c) {
+                    if ($c->getSuit() === 2 || ($c->getSuit() === 3 && $c->getValue() == 10)) {
+print "NOT elg ".$c->getDisplay()."\n";
                         continue;
                     }
                     $eligible[] = $c;
+print "first trick $isFirstTrick, ".$c->getDisplay()." is eligible\n";
                 }
                 return $eligible;
             }

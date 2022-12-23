@@ -168,7 +168,7 @@ class Round extends BaseProcess {
             }
 
             $this->showCards($cardsInTransition[$i], $p->getName() . ' passes: ');
-            $p->addCards($cardsInTransition[$j]);
+            $p->receivePassedCards($cardsInTransition[$j]);
             $p->showHand();
         }
     }

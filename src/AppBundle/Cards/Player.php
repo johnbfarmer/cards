@@ -6,11 +6,14 @@ class Player extends BaseProcess {
     protected $hand;
     protected $id;
     protected $name;
+    protected $riskTolerance = 0;
     protected $myScore = 0;
     protected $gameScores = [];
     protected $roundScores = [];
     protected $cardPlayed;
     protected $cardsPlayedThisRound = [];
+    protected $playersVoidInSuit = [[],[],[],[]]; //playersVoidInSuit[0][2] means p2 void in suit 0
+    protected $isHoldHand;
     protected $handStrategy;
     protected $trickStrategy;
 
@@ -22,11 +25,14 @@ class Player extends BaseProcess {
 
         $this->id = $id;
         $this->name = $name;
+        $this->riskTolerance = rand(1,100);
+        print $this->name . ' has riskTolerance ' . $this->riskTolerance . "\n";
     }
 
     public function addHand($hand, $isHoldHand)
     {
         $this->hand = $hand;
+        $this->isHoldHand = $isHoldHand;
         $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
 if ($this->handStrategy === 'shootTheMoon') {
     print $this->name . ' says I shall shoot the moon'."\n";
@@ -58,14 +64,23 @@ if ($this->handStrategy === 'shootTheMoon') {
                 $cardToPlayIdx = 0;
             } else {
                 $eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
+// foreach ($eligibleCards as $idx => $c) {
+//     print "elg $idx ".$c->getDisplay() . "\n";
+// }
                 $eligibleIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
                 $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
+print "lead card selected idx $eligibleIdx $cardToPlayIdx\n";
             }
         } else {
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
+foreach ($eligibleCards as $idx => $c) {
+    print "elg $idx ".$c->getDisplay() . "\n";
+}
             $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
+            // $cardToPlayIdx = $eligibleCards[$eligibleIdx];
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
+print "selected idx $eligibleIdx $cardToPlayIdx\n";
         }
 
         return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
@@ -76,15 +91,22 @@ if ($this->handStrategy === 'shootTheMoon') {
         return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards(), 'gameScores' => $this->gameScores, 'strategy' => $this->handStrategy]));
     }
 
-    public function addCards($c)
+    public function receivePassedCards($c)
     {
-        return $this->hand->addCards($c);
+        $this->hand->addCards($c);
+        if ($this->handStrategy === 'shootTheMoon') {
+            $this->handStrategy = Selector::getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores);
+            if ($this->handStrategy !== 'shootTheMoon') {
+                print $this->name . ' says I shall no longer shoot the moon'."\n";
+            }
+        }
     }
 
     protected function selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick)
     {
         return Selector::selectCard([
             'eligibleCards' => $eligibleCards,
+            'allCards' => $this->hand->getCards(),
             'isFirstTrick' => $isFirstTrick,
             'cardsPlayedThisTrick' => $cardsPlayedThisTrick,
             'handStrategy' => $this->handStrategy,
@@ -96,10 +118,13 @@ if ($this->handStrategy === 'shootTheMoon') {
     protected function selectLeadCard($eligibleCards, $isFirstTrick)
     {
         return Selector::selectLeadCard([
+            'allCards' => $this->hand->getCards(),
             'eligibleCards' => $eligibleCards,
             'isFirstTrick' => $isFirstTrick,
             'handStrategy' => $this->handStrategy,
             'trickStrategy' => $this->trickStrategy,
+            'cardsPlayedThisTrick' => [],
+            'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
         ]);
     }
 
@@ -137,9 +162,17 @@ if ($this->handStrategy === 'shootTheMoon') {
                 $takesTrick = $id;
                 $topValue = $value;
             }
+            if ($suit !== $leadSuit) {
+                $this->playersVoidInSuit[$leadSuit] = $id;
+// print "$id is void in $leadSuit\n";
+            }
         }
         $this->gameScores[$takesTrick] += $points;
         $this->roundScores[$takesTrick] += $points;
+        if ($this->handStrategy === 'shootTheMoon' && $points && $takesTrick !== $this->id) {
+            $this->handStrategy = 'avoidPoints';
+            print $this->name . ' says I shall no longer shoot the moon'."\n";
+        }
     }
 
     public function hasCards()

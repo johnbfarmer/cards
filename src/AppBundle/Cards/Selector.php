@@ -20,7 +20,7 @@ class Selector extends BaseProcess {
             if ($data['isFirstTrick']) {
                 return $handStrategy === 'shootTheMoon' ? 0 : count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
             }
-            return self::getIdxBestCardAvailableFollowSuit($data);
+            return self::getIdxBestCardAvailableOneSuit($data);
         }
 
         return self::getIdxBestCardAvailable($data);
@@ -50,12 +50,13 @@ class Selector extends BaseProcess {
             return 0;
         }
 
-        $sortedEligibleCards = self::mostDangerous($eligibleCards, count($eligibleCards));
+        // $sortedEligibleCards = self::mostDangerous($eligibleCards);
+        $sortedEligibleCards = self::sortByIdxForFewestPoints($data);
 
         switch ($data['handStrategy']) {
-            case self::STRATEGIES_ROUND[0]:
+            case 'avoidPoints':
                 return array_keys($sortedEligibleCards)[0];
-                return array_keys($sortedEligibleCards)[count($sortedEligibleCards) - 1];
+                // return array_keys($sortedEligibleCards)[count($sortedEligibleCards) - 1];
             default:
                 return rand(0, count($eligibleCards) - 1);
         }
@@ -85,13 +86,15 @@ class Selector extends BaseProcess {
                         $takingTrick = $playerId;
                     }
                 }
-
+// foreach ($eligibleCards as $idx => $c) {
+//     print "elg $idx ".$c->getDisplay() . "\n";
+// }
                 // we do not have to follow suit, so throw most dangerous
-                return self::mostDangerous($eligibleCards, 1)[0];
+                return self::mostDangerous($eligibleCards)[0];
         }
     }
 
-    public static function getIdxBestCardAvailableFollowSuit($data)
+    public static function getIdxBestCardAvailableOneSuit($data)
     {
         $eligibleCards = $data['eligibleCards'];
         $handStrategy = $data['handStrategy'];
@@ -99,6 +102,9 @@ class Selector extends BaseProcess {
         $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
         $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         $idxToReturn = -1;
+
+        // get the probability of taking points with each card
+        $data = self::rateDanger($data, true); // tbi here
         switch($trickStrategy) {
             case 'highestNoTake':
             default:
@@ -337,15 +343,161 @@ class Selector extends BaseProcess {
         return true;
     }
 
-    public static function mostDangerous($cards, $n)
+    protected static function sortByIdxForFewestPoints($data) {
+        $unplayedCards = self::getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+        print "unplayedCards: ";
+        foreach($unplayedCards as $suit => $crds) {
+            print " |  $suit: ";
+            foreach($crds as $c) {
+                print $c . ' ';
+            }
+        }
+        print " |\n";
+
+        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]); // - count($data['allCards']);
+        $probabilityOfSomeoneVoidInSuit = [];
+        for ($i = 0; $i < 4; $i++) {
+            $numUnplayedThisSuit = count($unplayedCards[$i]);
+            $probabilityOfSomeoneVoidInSuit[$i] = self::getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+        }
+        $ratings = [];
+        $sortedRatings = [];
+        $ret = [];
+        foreach ($data['eligibleCards'] as $idx => $c) {
+            $suit = $c->getSuit();
+            $value = $c->getValue();
+            $unplayedCardsLower = 0;
+            foreach ($unplayedCards[$suit] as $u) {
+                if ($u < $value) {
+                    $unplayedCardsLower++;
+                }
+            }
+            $ct = count($unplayedCards[$suit]);
+            $rating = $ct === 0 ? 1 : $probabilityOfSomeoneVoidInSuit[$suit] * $unplayedCardsLower / $ct;
+            $ratings[] = ['rating' => $rating, 'idx' => $idx];
+            print $idx.': '.$c->getDisplay() . " rating $rating (";
+            print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ")\n";
+        }
+
+        foreach ($ratings as $arr1) {
+            $rating = $arr1['rating'];
+            $insertIndex = 0;
+            foreach ($sortedRatings as $localIdx => $arr2) {
+                if ($rating >= $arr2['rating']) {
+                    $insertIndex = $localIdx + 1;
+                }
+            }
+            array_splice($sortedRatings, $insertIndex, 0, [$arr1]);
+            // var_dump($sortedRatings);
+        }
+
+        // var_dump($ratings);
+        // var_dump($sortedRatings);
+// return [$ratings[0]['idx']];
+
+        foreach ($sortedRatings as $arr) {
+            $ret[] = $arr['idx'];
+        }
+        var_dump(json_encode($ret));
+        return $ret;
+    }
+
+    protected static function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
+    {
+        $thoseWithThatSuit = 2 / 3 * $numUnplayed; // there are three other players, so 2/3 of the cards will contain all those cards of the suit
+print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWithThatSuit $thoseWithThatSuit\n";
+        $num = 1;
+        $denom = 1;
+        for ($i = 0; $i < $numUnplayedThisSuit; $i++) {
+            $num *= ($thoseWithThatSuit - $i);
+            $denom *= ($numUnplayed - $i);
+        }
+        if ($denom <= 0) {
+            return 1;
+        }
+print "get prob ".round($num / $denom, 3)." $num $denom $numUnplayed $numUnplayedThisSuit\n";
+        return ($num / $denom);
+        // return .5;
+    }
+
+    public static function mostDangerous($cards, $n = null)
     {
         uasort(
-            $cards, 
+            $cards,
             function($a, $b) {
                 return -1*($a->getDanger() <=> $b->getDanger());
             }
         );
 
+        if (!$n) {
+            return array_keys($cards);
+        }
+
         return array_slice(array_keys($cards), 0, $n);
+    }
+
+    protected static function getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $myCards)
+    {
+        $allCards = [
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+        ];
+        $playedCards = [[],[],[],[],];
+        foreach ($cardsPlayedThisRound as $id => $cards) {
+            foreach ($cards as $c) {
+                $playedCards[$c->getSuit()][] = $c->getValue();
+            }
+        }
+        foreach ($cardsPlayedThisTrick as $id => $c) {
+            $playedCards[$c->getSuit()][] = $c->getValue();
+        }
+        foreach ($myCards as $id => $c) {
+            $playedCards[$c->getSuit()][] = $c->getValue();
+        }
+
+        $unplayedCards = [];
+
+        for ($suit=0; $suit<4; $suit++) {
+            $unplayedCards[$suit] = array_diff($allCards[$suit], $playedCards[$suit]);
+        }
+
+        return $unplayedCards;
+    }
+
+    protected static function rateDanger($data, $singleSuit = false)
+    {
+        $allCards = $data['allCards'];
+        $eligibleCards = $data['eligibleCards'];
+        $handStrategy = $data['handStrategy'];
+        $trickStrategy = $data['trickStrategy'];
+        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $numberOfCardsPlayedThisTrick = count($cardsPlayedThisTrick);
+        $leadPlayerId = array_keys($cardsPlayedThisTrick)[0];
+        $leadSuit = $cardsPlayedThisTrick[$leadPlayerId]->getSuit();
+        $points = 0;
+        $numberUnplayed = [13, 13, 13, 13];
+        $unplayedCards = self::getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $allCards);
+
+        foreach ($cardsPlayedThisTrick as $id => $c) {
+            $suit = $c->getSuit();
+            $value = $c->getValue();
+            if ($suit === 2) {
+                $points++;
+            }
+            if ($suit === 3 && $value == 10) {
+                $points += 13;
+            }
+        }
+        foreach ($eligibleCards as $c) {
+            $suit = $c->getSuit();
+            $value = $c->getValue();
+            // print count($unplayedCards[$suit]) . " of suit " . $suit . " left\n";
+            // print 'unplayed : ' . implode(' ', $unplayedCards[$suit]) . "\n";
+        }
+
+        return $data;
     }
 }
