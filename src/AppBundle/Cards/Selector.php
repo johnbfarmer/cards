@@ -90,7 +90,11 @@ class Selector extends BaseProcess {
 //     print "elg $idx ".$c->getDisplay() . "\n";
 // }
                 // we do not have to follow suit, so throw most dangerous
-                return self::mostDangerous($eligibleCards)[0];
+                $dangerous = self::mostDangerous($eligibleCards);
+                print json_encode($dangerous)." <-- dangerous ordered\n";
+                // return $dangerous[0];
+                return array_keys($eligibleCards)[$dangerous[0]];
+                // return self::mostDangerous($eligibleCards)[0];
         }
     }
 
@@ -345,15 +349,6 @@ class Selector extends BaseProcess {
 
     protected static function sortByIdxForFewestPoints($data) {
         $unplayedCards = self::getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
-        print "unplayedCards: ";
-        foreach($unplayedCards as $suit => $crds) {
-            print " |  $suit: ";
-            foreach($crds as $c) {
-                print $c . ' ';
-            }
-        }
-        print " |\n";
-
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]); // - count($data['allCards']);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
@@ -373,9 +368,16 @@ class Selector extends BaseProcess {
                 }
             }
             $ct = count($unplayedCards[$suit]);
-            $rating = $ct === 0 ? 1 : $probabilityOfSomeoneVoidInSuit[$suit] * $unplayedCardsLower / $ct;
+            $rating = self::calculateExpectedPoints(
+                $suit,
+                $value,
+                [
+                    'unplayedCards' => $unplayedCards,
+                    'probabilityOfSomeoneVoidInSuit' => $probabilityOfSomeoneVoidInSuit[$suit]
+                ]
+            );
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
-            print $idx.': '.$c->getDisplay() . " rating $rating (";
+            print $idx.': '.$c->getDisplay() . " rating $rating (potential points * ";
             print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ")\n";
         }
 
@@ -388,24 +390,19 @@ class Selector extends BaseProcess {
                 }
             }
             array_splice($sortedRatings, $insertIndex, 0, [$arr1]);
-            // var_dump($sortedRatings);
         }
-
-        // var_dump($ratings);
-        // var_dump($sortedRatings);
-// return [$ratings[0]['idx']];
 
         foreach ($sortedRatings as $arr) {
             $ret[] = $arr['idx'];
         }
-        var_dump(json_encode($ret));
+var_dump(json_encode($ret));
         return $ret;
     }
 
     protected static function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
     {
         $thoseWithThatSuit = 2 / 3 * $numUnplayed; // there are three other players, so 2/3 of the cards will contain all those cards of the suit
-print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWithThatSuit $thoseWithThatSuit\n";
+// print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWithThatSuit $thoseWithThatSuit\n";
         $num = 1;
         $denom = 1;
         for ($i = 0; $i < $numUnplayedThisSuit; $i++) {
@@ -415,9 +412,42 @@ print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWi
         if ($denom <= 0) {
             return 1;
         }
-print "get prob ".round($num / $denom, 3)." $num $denom $numUnplayed $numUnplayedThisSuit\n";
-        return ($num / $denom);
-        // return .5;
+// print "get prob of a particular player void in this suit: ".round($num / $denom, 3)." ($num $denom $numUnplayed $numUnplayedThisSuit)\n";
+        $p1 = ($num / $denom);
+        return 1 - pow(1 - $p1, 3);
+    }
+
+    protected static function calculateExpectedPoints($suit, $value, $data)
+    {
+        $unplayedCards = $data['unplayedCards'];
+        $probabilityOfSomeoneVoidInSuit = $data['probabilityOfSomeoneVoidInSuit'];
+        $unplayedCardsLower = 0;
+        foreach ($unplayedCards[$suit] as $u) {
+            if ($u < $value) {
+                $unplayedCardsLower++;
+            }
+        }
+        $ct = count($unplayedCards[$suit]);
+        $probabilityThatThisCardTakes = $ct === 0 ? 1 : $probabilityOfSomeoneVoidInSuit * $unplayedCardsLower / $ct;
+        $queenAtLarge = !empty($unplayedCards[3][10]);
+        $heartsLimit = $queenAtLarge ? 2 : 3;
+        $maxHearts = min($heartsLimit, $unplayedCards[2]);
+        $points = $maxHearts + $queenAtLarge ? 13 : 0;
+        $expectedPoints = $probabilityThatThisCardTakes * $points;
+        switch($suit) {
+            case 3:
+                $points = $maxHearts;
+                if ($queenAtLarge || $value == 10) {
+                    $points += $value >= 10 ? 13 : 0;
+                }
+                return $probabilityThatThisCardTakes * $points;
+            case 2:
+                $probabilityThatThisCardTakes = $ct === 0 ? 1 : $unplayedCardsLower / $ct;
+                $points = $ct === 0 ? 1 : $maxHearts * $probabilityThatThisCardTakes;
+                return ($points + $probabilityOfSomeoneVoidInSuit * 13) * $probabilityThatThisCardTakes;
+            default:
+                return $expectedPoints;
+        }
     }
 
     public static function mostDangerous($cards, $n = null)
@@ -428,7 +458,7 @@ print "get prob ".round($num / $denom, 3)." $num $denom $numUnplayed $numUnplaye
                 return -1*($a->getDanger() <=> $b->getDanger());
             }
         );
-
+print "gonna return ".json_encode(array_keys($cards))."\n";
         if (!$n) {
             return array_keys($cards);
         }

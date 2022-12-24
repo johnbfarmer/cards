@@ -26,7 +26,7 @@ class Player extends BaseProcess {
         $this->id = $id;
         $this->name = $name;
         $this->riskTolerance = rand(1,100);
-        print $this->name . ' has riskTolerance ' . $this->riskTolerance . "\n";
+        print $this->name . ' has riskTolerance ' . $this->riskTolerance . " (not yet used)\n";
     }
 
     public function addHand($hand, $isHoldHand)
@@ -34,9 +34,9 @@ class Player extends BaseProcess {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
         $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
-if ($this->handStrategy === 'shootTheMoon') {
-    print $this->name . ' says I shall shoot the moon'."\n";
-}
+        if ($this->handStrategy === 'shootTheMoon') {
+            print $this->name . ' says I shall try to shoot the moon'."\n";
+        }
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
     }
@@ -65,22 +65,22 @@ if ($this->handStrategy === 'shootTheMoon') {
             } else {
                 $eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
 // foreach ($eligibleCards as $idx => $c) {
-//     print "elg $idx ".$c->getDisplay() . "\n";
+//     print "lead elg $idx ".$c->getDisplay() . "\n";
 // }
                 $eligibleIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
                 $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
-print "lead card selected idx $eligibleIdx $cardToPlayIdx\n";
+// print "lead card selected idx $eligibleIdx $cardToPlayIdx\n";
             }
         } else {
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
-foreach ($eligibleCards as $idx => $c) {
-    print "elg $idx ".$c->getDisplay() . "\n";
-}
+// foreach ($eligibleCards as $idx => $c) {
+//     print "elg $idx ".$c->getDisplay() . "\n";
+// }
             $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
             // $cardToPlayIdx = $eligibleCards[$eligibleIdx];
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
-print "selected idx $eligibleIdx $cardToPlayIdx\n";
+// print "selected idx $eligibleIdx $cardToPlayIdx\n";
         }
 
         return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
