@@ -91,7 +91,7 @@ class Selector extends BaseProcess {
 // }
                 // we do not have to follow suit, so throw most dangerous
                 $dangerous = self::mostDangerous($eligibleCards);
-                print json_encode($dangerous)." <-- dangerous ordered\n";
+// print json_encode($dangerous)." <-- dangerous ordered\n";
                 // return $dangerous[0];
                 return array_keys($eligibleCards)[$dangerous[0]];
                 // return self::mostDangerous($eligibleCards)[0];
@@ -376,7 +376,7 @@ class Selector extends BaseProcess {
                     'probabilityOfSomeoneVoidInSuit' => $probabilityOfSomeoneVoidInSuit[$suit]
                 ]
             );
-            $ratings[] = ['rating' => $rating, 'idx' => $idx];
+            $ratings[] = ['rating' => $rating - .1 * $value, 'idx' => $idx];
             print $idx.': '.$c->getDisplay() . " rating $rating (potential points * ";
             print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ")\n";
         }
@@ -458,7 +458,7 @@ var_dump(json_encode($ret));
                 return -1*($a->getDanger() <=> $b->getDanger());
             }
         );
-print "gonna return ".json_encode(array_keys($cards))."\n";
+
         if (!$n) {
             return array_keys($cards);
         }
