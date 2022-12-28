@@ -69,14 +69,12 @@ class Player extends BaseProcess {
                 $cardToPlayIdx = 0;
             } else {
                 $eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
-                $eligibleIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
-                $cardToPlayIdx = $eligibleIdx;
+                $cardToPlayIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
             }
         } else {
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
-            $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
-            $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
+            $cardToPlayIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
         }
 
         return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
@@ -169,6 +167,7 @@ class Player extends BaseProcess {
         if ($this->handStrategy === 'shootTheMoon' && $points && $takesTrick !== $this->id) {
             $this->handStrategy = 'avoidPoints';
             print $this->name . ' says I shall no longer shoot the moon'."\n";
+            $this->selector = new DefaultSelector([]);
         }
     }
 

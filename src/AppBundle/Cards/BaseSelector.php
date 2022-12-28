@@ -18,7 +18,7 @@ class BaseSelector extends BaseProcess {
 
         if ($this->allSameSuit($eligibleCards)) {
             if ($data['isFirstTrick']) {
-                return $handStrategy === 'shootTheMoon' ? 0 : count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
+                return count($eligibleCards) - 1;
             }
             return $this->getIdxBestCardAvailableOneSuit($data);
         }
@@ -79,15 +79,10 @@ class BaseSelector extends BaseProcess {
                         $takingTrick = $playerId;
                     }
                 }
-// foreach ($eligibleCards as $idx => $c) {
-//     print "elg $idx ".$c->getDisplay() . "\n";
-// }
                 // we do not have to follow suit, so throw most dangerous
                 $dangerous = $this->mostDangerous($eligibleCards);
-// print json_encode($dangerous)." <-- dangerous ordered\n";
-                // return $dangerous[0];
-                return array_keys($eligibleCards)[$dangerous[0]];
-                // return $this->mostDangerous($eligibleCards)[0];
+
+                return $dangerous[0];
         }
     }
 
@@ -122,8 +117,57 @@ class BaseSelector extends BaseProcess {
                         $idxToReturn++;
                     }
                 }
-                return max($idxToReturn, 0);
+                $idx = max($idxToReturn, 0);
+                return array_keys($eligibleCards)[$idx];
         }
+    }
+
+    protected function lowestTakeCard($data)
+    {
+        $eligibleCards = $data['eligibleCards'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $suit = null;
+        $highestVal = null;
+        foreach ($cardsPlayedThisTrick as $c) {
+            $suit = is_null($suit) ? $c->getSuit() : $suit;
+            $val = $c->getValue();
+            $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
+        }
+        $idxToReturn = -1;
+        foreach ($eligibleCards as $c) {
+            $idxToReturn++;
+            if ($c->getSuit() != $suit) {
+                continue;
+            }
+            if ($c->getValue() > $highestVal) {
+                return $idxToReturn;
+            }
+        }
+
+        return -1;
+    }
+
+    protected function highestTakeCard($data)
+    {
+        $eligibleCards = $data['eligibleCards'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $suit = null;
+        $highestVal = null;
+        foreach ($cardsPlayedThisTrick as $c) {
+            $suit = is_null($suit) ? $c->getSuit() : $suit;
+            $val = $c->getValue();
+            $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
+        }
+        $idxToReturn = -1;
+        rsort($eligibleCards);
+        foreach ($eligibleCards as $c) {
+            $idxToReturn++;
+            if ($c->getSuit() == $suit) {
+                break;
+            }
+        }
+
+        return $idxToReturn;
     }
 
     // return hand indices in reverse order of 3 cards to pass
@@ -132,17 +176,6 @@ class BaseSelector extends BaseProcess {
         $cards = $data['hand'];
         $scores = $data['gameScores'];
         $strategy = $data['strategy'];
-
-        switch ($strategy) {
-            case 'shootTheMoon':
-                return $this->selectCardsToPassForShootingTheMoon($cards);
-            default:
-                return $this->selectCardsToPassForAvoidingPoints($cards);
-        }
-    }
-
-    protected function selectCardsToPassForAvoidingPoints($cards)
-    {
         $h = [];
         foreach ($cards as $idx => $c) {
             $s = $c->getSuit();
@@ -214,19 +247,8 @@ class BaseSelector extends BaseProcess {
                 array_splice($sorted, $insertIndex, 0, [$thing1]);
             }
         }
-        if ($all) {
-            return $sorted;
-        }
-        $indexes = [];
-        $ct = 0;
-        foreach ($sorted as $thing2) {
-            if ($ct++ < 3) {
-                $indexes[] = $thing2['i'];
-            }
-        }
-        arsort($indexes);
 
-        return $indexes;
+        return $sorted;
     }
 
     protected function calculateDangerForAvoidingPoints($suit, $arr)
@@ -333,6 +355,18 @@ class BaseSelector extends BaseProcess {
         return $ret;
     }
 
+    protected function thisTrickHasPoints($cards)
+    {
+        foreach ($cards as $c) {
+            $suit = $c->getSuit();
+            if ($suit == 2 || ($suit == 3 && $c->getValue() == 10)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function getRoundStrategy($cards, $isHoldHand, $scores)
     {
         if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores)) {
@@ -411,7 +445,6 @@ class BaseSelector extends BaseProcess {
     protected function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
     {
         $thoseWithThatSuit = 2 / 3 * $numUnplayed; // there are three other players, so 2/3 of the cards will contain all those cards of the suit
-// print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWithThatSuit $thoseWithThatSuit\n";
         $num = 1;
         $denom = 1;
         for ($i = 0; $i < $numUnplayedThisSuit; $i++) {
@@ -421,7 +454,7 @@ class BaseSelector extends BaseProcess {
         if ($denom <= 0) {
             return 1;
         }
-// print "get prob of a particular player void in this suit: ".round($num / $denom, 3)." ($num $denom $numUnplayed $numUnplayedThisSuit)\n";
+
         $p1 = ($num / $denom);
         return 1 - pow(1 - $p1, 3);
     }
@@ -459,7 +492,7 @@ class BaseSelector extends BaseProcess {
         }
     }
 
-    public function mostDangerous($cards, $n = null)
+    public function mostDangerous($cards)
     {
         uasort(
             $cards,
@@ -468,11 +501,19 @@ class BaseSelector extends BaseProcess {
             }
         );
 
-        if (!$n) {
-            return array_keys($cards);
-        }
+        return array_keys($cards);
+    }
 
-        return array_slice(array_keys($cards), 0, $n);
+    public function leastDangerous($cards)
+    {
+        uasort(
+            $cards,
+            function($a, $b) {
+                return ($a->getDanger() <=> $b->getDanger());
+            }
+        );
+
+        return array_keys($cards);
     }
 
     protected function getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $myCards)
