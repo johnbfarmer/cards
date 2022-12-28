@@ -51,6 +51,10 @@ class BaseProcess
 
     protected function writeln($msg)
     {
+        if (is_array($msg)) {
+            $msg = json_encode($msg);
+        }
+
         if ($this->output) {
             $this->output->writeln($msg);
         } else {

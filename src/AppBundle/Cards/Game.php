@@ -14,6 +14,7 @@ class Game extends BaseProcess {
     protected $gameOver = false;
     protected $winner = 'nobody';
     protected $names = ['Dilbert', 'Ululua', 'Sally', 'Smelch'];
+    protected $strategies = ['default', 'default', 'default', 'default',];
 
     public function __construct($params)
     {
@@ -25,7 +26,7 @@ class Game extends BaseProcess {
     public function createPlayers()
     {
         for ($i = 1; $i <= $this->numberOfPlayers; $i++) {
-            $this->players[$i] = new Player($i, $this->names[$i-1]);
+            $this->players[$i] = new Player($i, $this->names[$i-1], $this->strategies[$i-1]);
             $this->scores[$i] = 0;
         }
     }

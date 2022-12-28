@@ -2,11 +2,11 @@
 
 namespace AppBundle\Cards;
 
-class Selector extends BaseProcess {
+class BaseSelector extends BaseProcess {
     const STRATEGIES_ROUND = ['avoidPoints', 'shootTheMoon', 'blockShootTheMoon', 'protectOther', 'attackOther'];
     const STRATEGIES_TRICK = ['highestNoTake', 'takeHigh', 'takeLow', 'dumpHigh', 'dumpLow'];
 
-    public static function selectCard($data)
+    public function selectCard($data)
     {
         $eligibleCards = $data['eligibleCards'];
         $handStrategy = $data['handStrategy'];
@@ -16,17 +16,17 @@ class Selector extends BaseProcess {
             return 0;
         }
 
-        if (self::allSameSuit($eligibleCards)) {
+        if ($this->allSameSuit($eligibleCards)) {
             if ($data['isFirstTrick']) {
                 return $handStrategy === 'shootTheMoon' ? 0 : count($eligibleCards) - 1; // assuming you're not shooting the moon, throw the highest club
             }
-            return self::getIdxBestCardAvailableOneSuit($data);
+            return $this->getIdxBestCardAvailableOneSuit($data);
         }
 
-        return self::getIdxBestCardAvailable($data);
+        return $this->getIdxBestCardAvailable($data);
     }
 
-    public static function allSameSuit($cards)
+    public function allSameSuit($cards)
     {
         $allAreSameSuit = true;
         $suit = null;
@@ -43,27 +43,20 @@ class Selector extends BaseProcess {
         return $allAreSameSuit;
     }
 
-    public static function selectLeadCard($data)
+    public function selectLeadCard($data)
     {
         $eligibleCards = $data['eligibleCards'];
         if (count($eligibleCards) === 1) {
             return 0;
         }
 
-        // $sortedEligibleCards = self::mostDangerous($eligibleCards);
-        $sortedEligibleCards = self::sortByIdxForFewestPoints($data);
+        $sortedEligibleCards = $this->selectLeadByStrategy($data);
 
-        switch ($data['handStrategy']) {
-            case 'avoidPoints':
-                return array_keys($sortedEligibleCards)[0];
-                // return array_keys($sortedEligibleCards)[count($sortedEligibleCards) - 1];
-            default:
-                return rand(0, count($eligibleCards) - 1);
-        }
+        return $sortedEligibleCards[0];
 
     }
 
-    public static function getIdxBestCardAvailable($data)
+    public function getIdxBestCardAvailable($data)
     {
         $eligibleCards = $data['eligibleCards'];
         $handStrategy = $data['handStrategy'];
@@ -90,15 +83,15 @@ class Selector extends BaseProcess {
 //     print "elg $idx ".$c->getDisplay() . "\n";
 // }
                 // we do not have to follow suit, so throw most dangerous
-                $dangerous = self::mostDangerous($eligibleCards);
+                $dangerous = $this->mostDangerous($eligibleCards);
 // print json_encode($dangerous)." <-- dangerous ordered\n";
                 // return $dangerous[0];
                 return array_keys($eligibleCards)[$dangerous[0]];
-                // return self::mostDangerous($eligibleCards)[0];
+                // return $this->mostDangerous($eligibleCards)[0];
         }
     }
 
-    public static function getIdxBestCardAvailableOneSuit($data)
+    public function getIdxBestCardAvailableOneSuit($data)
     {
         $eligibleCards = $data['eligibleCards'];
         $handStrategy = $data['handStrategy'];
@@ -108,7 +101,7 @@ class Selector extends BaseProcess {
         $idxToReturn = -1;
 
         // get the probability of taking points with each card
-        $data = self::rateDanger($data, true); // tbi here
+        $data = $this->rateDanger($data, true); // tbi here
         switch($trickStrategy) {
             case 'highestNoTake':
             default:
@@ -134,21 +127,21 @@ class Selector extends BaseProcess {
     }
 
     // return hand indices in reverse order of 3 cards to pass
-    public static function selectCardsToPass($data)
+    public function selectCardsToPass($data)
     {
         $cards = $data['hand'];
         $scores = $data['gameScores'];
         $strategy = $data['strategy'];
 
         switch ($strategy) {
-            case self::STRATEGIES_ROUND[1]:
-                return self::selectCardsToPassForShootingTheMoon($cards);
+            case 'shootTheMoon':
+                return $this->selectCardsToPassForShootingTheMoon($cards);
             default:
-                return self::selectCardsToPassForAvoidingPoints($cards);
+                return $this->selectCardsToPassForAvoidingPoints($cards);
         }
     }
 
-    protected static function selectCardsToPassForAvoidingPoints($cards)
+    protected function selectCardsToPassForAvoidingPoints($cards)
     {
         $h = [];
         foreach ($cards as $idx => $c) {
@@ -162,7 +155,7 @@ class Selector extends BaseProcess {
         }
 
         foreach ($h as $suit => $arr) {
-            $h[$suit] = self::calculateDangerForAvoidingPoints($suit, $arr);
+            $h[$suit] = $this->calculateDangerForAvoidingPoints($suit, $arr);
         }
 
         $sorted = [];
@@ -190,8 +183,9 @@ class Selector extends BaseProcess {
         return $indexes;
     }
 
-    protected static function selectCardsToPassForShootingTheMoon($cards, $all = false)
+    protected function selectCardsToPassForShootingTheMoon($cards, $all = false)
     {
+        $myCardCounts = $this->countMyCardsBySuit($cards);
         $h = [];
         foreach ($cards as $idx => $c) {
             $s = $c->getSuit();
@@ -204,7 +198,7 @@ class Selector extends BaseProcess {
         }
 
         foreach ($h as $suit => $arr) {
-            $h[$suit] = self::calculateDangerForShootingTheMoon($suit, $arr);
+            $h[$suit] = $this->calculateDangerForShootingTheMoon($suit, $arr);
         }
 
         $sorted = [];
@@ -235,7 +229,7 @@ class Selector extends BaseProcess {
         return $indexes;
     }
 
-    protected static function calculateDangerForAvoidingPoints($suit, $arr)
+    protected function calculateDangerForAvoidingPoints($suit, $arr)
     {
         switch ($suit) {
             case 3:
@@ -281,7 +275,7 @@ class Selector extends BaseProcess {
         }
     }
 
-    protected static function calculateDangerForShootingTheMoon($suit, $arr)
+    protected function calculateDangerForShootingTheMoon($suit, $arr)
     {
         rsort($arr);
         switch ($suit) {
@@ -297,7 +291,7 @@ class Selector extends BaseProcess {
                         $hasTheTwo = true;
                     }
                 }
-                if ($hasTheTwo) {
+                if ($hasTheTwo) { // note if not 2 of clubs, use the default
                     $base = 0;
                     $ct = 0;
                     foreach ($arr as $idx => $vi) {
@@ -316,6 +310,10 @@ class Selector extends BaseProcess {
                 foreach ($arr as $idx => $vi) {
                     if ($ct++ < 3) {
                         $base += 12 - $idx - $vi['v'];
+// let's analyze this. spose I have 345JQA of some suit. base will be 12-12 + 12-1-10 + 12-2-9 = 2
+// danger will then be 0,2,4,18,20,22
+// now if we have 45 of a suit base is 12-3 + 11-2 = 18
+// danger 162,180
                     }
                 }
                 foreach ($arr as $idx => $vi) {
@@ -325,19 +323,29 @@ class Selector extends BaseProcess {
         }
     }
 
-    public static function getRoundStrategy($cards, $isHoldHand, $scores)
+    protected function countMyCardsBySuit($cards)
     {
-        if (self::shouldShootTheMoon($cards, $isHoldHand, $scores)) {
-            return self::STRATEGIES_ROUND[1];
+        $ret = [0,0,0,0];
+        foreach ($cards as $c) {
+            $ret[$c->getSuit()]++;
         }
-        return self::STRATEGIES_ROUND[0];
+
+        return $ret;
     }
 
-    public static function shouldShootTheMoon($cards, $isHoldHand, $scores)
+    public function getRoundStrategy($cards, $isHoldHand, $scores)
     {
-        $crds = self::selectCardsToPassForShootingTheMoon($cards, true);
+        if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores)) {
+            return 'shootTheMoon';
+        }
+        return 'avoidPoints';
+    }
+
+    public function shouldShootTheMoon($cards, $noPassing, $scores)
+    {
+        $crds = $this->selectCardsToPassForShootingTheMoon($cards, true);
         $ct = 0;
-        $numberOfCardsToPass = $isHoldHand ? 0 : 3;
+        $numberOfCardsToPass = $noPassing ? 0 : 3;
         foreach ($crds as $c) {
             if (++$ct >  $numberOfCardsToPass && $c['danger'] > 100) {
                 return false;
@@ -347,13 +355,13 @@ class Selector extends BaseProcess {
         return true;
     }
 
-    protected static function sortByIdxForFewestPoints($data) {
-        $unplayedCards = self::getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
-        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]); // - count($data['allCards']);
+    protected function selectLeadByStrategy($data) {
+        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
             $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = self::getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+            $probabilityOfSomeoneVoidInSuit[$i] = $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
         }
         $ratings = [];
         $sortedRatings = [];
@@ -368,7 +376,7 @@ class Selector extends BaseProcess {
                 }
             }
             $ct = count($unplayedCards[$suit]);
-            $rating = self::calculateExpectedPoints(
+            $rating = $this->calculateExpectedPoints(
                 $suit,
                 $value,
                 [
@@ -376,9 +384,10 @@ class Selector extends BaseProcess {
                     'probabilityOfSomeoneVoidInSuit' => $probabilityOfSomeoneVoidInSuit[$suit]
                 ]
             );
-            $ratings[] = ['rating' => $rating - .1 * $value, 'idx' => $idx];
+            $rating -= .001 * $value;
+            $ratings[] = ['rating' => $rating, 'idx' => $idx];
             print $idx.': '.$c->getDisplay() . " rating $rating (potential points * ";
-            print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ")\n";
+            print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ") - .001 * $value\n";
         }
 
         foreach ($ratings as $arr1) {
@@ -395,11 +404,11 @@ class Selector extends BaseProcess {
         foreach ($sortedRatings as $arr) {
             $ret[] = $arr['idx'];
         }
-var_dump(json_encode($ret));
+
         return $ret;
     }
 
-    protected static function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
+    protected function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
     {
         $thoseWithThatSuit = 2 / 3 * $numUnplayed; // there are three other players, so 2/3 of the cards will contain all those cards of the suit
 // print "numUnplayed $numUnplayed numUnplayedThisSuit $numUnplayedThisSuit thoseWithThatSuit $thoseWithThatSuit\n";
@@ -417,7 +426,7 @@ var_dump(json_encode($ret));
         return 1 - pow(1 - $p1, 3);
     }
 
-    protected static function calculateExpectedPoints($suit, $value, $data)
+    protected function calculateExpectedPoints($suit, $value, $data)
     {
         $unplayedCards = $data['unplayedCards'];
         $probabilityOfSomeoneVoidInSuit = $data['probabilityOfSomeoneVoidInSuit'];
@@ -450,7 +459,7 @@ var_dump(json_encode($ret));
         }
     }
 
-    public static function mostDangerous($cards, $n = null)
+    public function mostDangerous($cards, $n = null)
     {
         uasort(
             $cards,
@@ -466,7 +475,7 @@ var_dump(json_encode($ret));
         return array_slice(array_keys($cards), 0, $n);
     }
 
-    protected static function getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $myCards)
+    protected function getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $myCards)
     {
         $allCards = [
             [0,1,2,3,4,5,6,7,8,9,10,11,12],
@@ -496,7 +505,7 @@ var_dump(json_encode($ret));
         return $unplayedCards;
     }
 
-    protected static function rateDanger($data, $singleSuit = false)
+    protected function rateDanger($data, $singleSuit = false)
     {
         $allCards = $data['allCards'];
         $eligibleCards = $data['eligibleCards'];
@@ -509,7 +518,7 @@ var_dump(json_encode($ret));
         $leadSuit = $cardsPlayedThisTrick[$leadPlayerId]->getSuit();
         $points = 0;
         $numberUnplayed = [13, 13, 13, 13];
-        $unplayedCards = self::getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $allCards);
+        $unplayedCards = $this->getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $allCards);
 
         foreach ($cardsPlayedThisTrick as $id => $c) {
             $suit = $c->getSuit();

@@ -14,10 +14,12 @@ class Player extends BaseProcess {
     protected $cardsPlayedThisRound = [];
     protected $playersVoidInSuit = [[],[],[],[]]; //playersVoidInSuit[0][2] means p2 void in suit 0
     protected $isHoldHand;
+    protected $baseStrategy;
     protected $handStrategy;
     protected $trickStrategy;
+    protected $selector;
 
-    public function __construct($id, $name = null)
+    public function __construct($id, $name = null, $strategy = null)
     {
         if (is_null($name)) {
             $name = 'Player ' . $id;
@@ -25,6 +27,8 @@ class Player extends BaseProcess {
 
         $this->id = $id;
         $this->name = $name;
+        $this->baseStrategy = is_null($strategy) ? 'default' : $strategy;
+        $this->selector = new DefaultSelector([]);
         $this->riskTolerance = rand(1,100);
         print $this->name . ' has riskTolerance ' . $this->riskTolerance . " (not yet used)\n";
     }
@@ -33,9 +37,10 @@ class Player extends BaseProcess {
     {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
-        $this->handStrategy = Selector::getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
+        $this->handStrategy = $this->selector->getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
         if ($this->handStrategy === 'shootTheMoon') {
             print $this->name . ' says I shall try to shoot the moon'."\n";
+            $this->selector = new ShootTheMoonSelector([]);
         }
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
@@ -64,23 +69,14 @@ class Player extends BaseProcess {
                 $cardToPlayIdx = 0;
             } else {
                 $eligibleCards = $this->hand->getEligibleLeadCards($isBrokenHearts);
-// foreach ($eligibleCards as $idx => $c) {
-//     print "lead elg $idx ".$c->getDisplay() . "\n";
-// }
                 $eligibleIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
-                $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
-// print "lead card selected idx $eligibleIdx $cardToPlayIdx\n";
+                $cardToPlayIdx = $eligibleIdx;
             }
         } else {
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
-// foreach ($eligibleCards as $idx => $c) {
-//     print "elg $idx ".$c->getDisplay() . "\n";
-// }
             $eligibleIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
-            // $cardToPlayIdx = $eligibleCards[$eligibleIdx];
             $cardToPlayIdx = array_keys($eligibleCards)[$eligibleIdx];
-// print "selected idx $eligibleIdx $cardToPlayIdx\n";
         }
 
         return $this->cardPlayed = $this->hand->getCard($cardToPlayIdx);
@@ -88,23 +84,24 @@ class Player extends BaseProcess {
 
     public function getCardsToPass($dirLabel)
     {
-        return $this->hand->getCardsToPass(Selector::selectCardsToPass(['hand' => $this->hand->getCards(), 'gameScores' => $this->gameScores, 'strategy' => $this->handStrategy]));
+        return $this->hand->getCardsToPass($this->selector->selectCardsToPass(['hand' => $this->hand->getCards(), 'gameScores' => $this->gameScores, 'strategy' => $this->handStrategy]));
     }
 
     public function receivePassedCards($c)
     {
         $this->hand->addCards($c);
         if ($this->handStrategy === 'shootTheMoon') {
-            $this->handStrategy = Selector::getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores);
+            $this->handStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores);
             if ($this->handStrategy !== 'shootTheMoon') {
                 print $this->name . ' says I shall no longer shoot the moon'."\n";
+                $this->selector = new DefaultSelector([]);
             }
         }
     }
 
     protected function selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick)
     {
-        return Selector::selectCard([
+        return $this->selector->selectCard([
             'eligibleCards' => $eligibleCards,
             'allCards' => $this->hand->getCards(),
             'isFirstTrick' => $isFirstTrick,
@@ -117,7 +114,7 @@ class Player extends BaseProcess {
 
     protected function selectLeadCard($eligibleCards, $isFirstTrick)
     {
-        return Selector::selectLeadCard([
+        return $this->selector->selectLeadCard([
             'allCards' => $this->hand->getCards(),
             'eligibleCards' => $eligibleCards,
             'isFirstTrick' => $isFirstTrick,
