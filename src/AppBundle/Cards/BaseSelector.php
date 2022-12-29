@@ -13,12 +13,12 @@ class BaseSelector extends BaseProcess {
         $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
         $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         if (count($eligibleCards) === 1) {
-            return 0;
+            return array_keys($eligibleCards)[0];
         }
 
         if ($this->allSameSuit($eligibleCards)) {
             if ($data['isFirstTrick']) {
-                return count($eligibleCards) - 1;
+                return array_keys($eligibleCards)[count($eligibleCards) - 1];
             }
             return $this->getIdxBestCardAvailableOneSuit($data);
         }
@@ -47,7 +47,7 @@ class BaseSelector extends BaseProcess {
     {
         $eligibleCards = $data['eligibleCards'];
         if (count($eligibleCards) === 1) {
-            return 0;
+            return array_keys($eligibleCards)[0];
         }
 
         $sortedEligibleCards = $this->selectLeadByStrategy($data);
@@ -82,7 +82,7 @@ class BaseSelector extends BaseProcess {
                 // we do not have to follow suit, so throw most dangerous
                 $dangerous = $this->mostDangerous($eligibleCards);
 
-                return $dangerous[0];
+                return $dangerous[0]; // <-- huh? what about all the work above?
         }
     }
 

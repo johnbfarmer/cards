@@ -104,39 +104,19 @@ class ShootTheMoonSelector extends BaseSelector {
     public function selectCard($data)
     {
         $eligibleCards = $data['eligibleCards'];
-        $handStrategy = $data['handStrategy'];
-        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
-        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         if (count($eligibleCards) === 1) {
-            return 0;
+            return array_keys($eligibleCards)[0];
         }
 
-        if ($this->allSameSuit($eligibleCards)) {
-            if ($data['isFirstTrick']) {
-                return 0; // lowest club
-            }
-            return $this->selectCardSingleSuit($data);
+        if ($this->allSameSuit($eligibleCards) && $data['isFirstTrick']) {
+            return array_keys($eligibleCards)[0]; // lowest club
         }
 
-        return $this->selectCardSingleSuit($data);
-        // return $this->getIdxBestCardAvailable($data);
-    }
-
-    public function selectCardSingleSuit($data)
-    {
-        $eligibleCards = $data['eligibleCards'];
         $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
-        $idxToReturn = -1;
-
-        // if there are points we have to take it
-        // if not and we are last, throw low
-        // if we don't know, look at probabilities
         $thisTrickHasPoints = $this->thisTrickHasPoints($cardsPlayedThisTrick);
         $amLastToPlay = count($cardsPlayedThisTrick) === 3;
-$this->writeln("thisTrickHasPoints $thisTrickHasPoints amLastToPlay $amLastToPlay");
         if ($thisTrickHasPoints) {
         	$cardToTake = $amLastToPlay ? $this->lowestTakeCard($data) : $this->highestTakeCard($data);
-$this->writeln("cardToTake $cardToTake");
         	if ($cardToTake > -1) {
         		return $cardToTake;
         	}
@@ -177,9 +157,6 @@ $this->writeln('i cant take it');
         $probabilityOfPointsThisTrick = 1 - pow(1 - $probabilityOfSomeoneVoidInSuit[$suit], $numberOfPlayersAfterMe);
         $vulnerabilityMatrix = $this->calculateVulnerabilities($data, $unplayedCards);
 $this->writeln($vulnerabilityMatrix);
-// $this->writeln($probabilityOfSomeoneVoidInSuit[$suit]);
-// $this->writeln(1-$probabilityOfSomeoneVoidInSuit[$suit]);
-// $this->writeln(1 - pow(1 - $probabilityOfSomeoneVoidInSuit[$suit], $numberOfPlayersAfterMe));
         $ratings = [];
         $sortedRatings = [];
         $ret = [];
