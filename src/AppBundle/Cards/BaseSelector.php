@@ -134,16 +134,16 @@ class BaseSelector extends BaseProcess {
             $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
         }
         $idxToReturn = -1;
-        foreach ($eligibleCards as $c) {
+        foreach ($eligibleCards as $idx => $c) {
             $idxToReturn++;
             if ($c->getSuit() != $suit) {
                 continue;
             }
             if ($c->getValue() > $highestVal) {
-                return $idxToReturn;
+$this->writeln("lowestTakeCard idxToReturn $idx ");
+                return $idx;
             }
         }
-
         return -1;
     }
 
@@ -159,14 +159,16 @@ class BaseSelector extends BaseProcess {
             $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
         }
         $idxToReturn = -1;
-        rsort($eligibleCards);
-        foreach ($eligibleCards as $c) {
-            $idxToReturn++;
-            if ($c->getSuit() == $suit) {
+        arsort($eligibleCards);
+        $iCanTakeIt = false;
+        foreach ($eligibleCards as $idx => $c) {
+            if ($c->getSuit() == $suit && $c->getValue() > $highestVal) {
+                $idxToReturn = $idx;
                 break;
             }
         }
-
+$this->writeln(array_keys($eligibleCards));
+$this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return $idxToReturn;
     }
 
@@ -367,6 +369,27 @@ class BaseSelector extends BaseProcess {
         return false;
     }
 
+    protected function canTakeThisTrick($data)
+    {
+        $eligibleCards = $data['eligibleCards'];
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $suit = null;
+        $highestVal = null;
+        foreach ($cardsPlayedThisTrick as $c) {
+            $suit = is_null($suit) ? $c->getSuit() : $suit;
+            $val = $c->getValue();
+            $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
+        }
+        rsort($eligibleCards);
+        foreach ($eligibleCards as $c) {
+            if ($c->getSuit() == $suit && $c->getValue() > $highestVal) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function getRoundStrategy($cards, $isHoldHand, $scores)
     {
         if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores)) {
@@ -456,6 +479,7 @@ class BaseSelector extends BaseProcess {
         }
 
         $p1 = ($num / $denom);
+$this->writeln("There is a $p1 chance that one player has none given $numUnplayedThisSuit | $numUnplayed");
         return 1 - pow(1 - $p1, 3);
     }
 
