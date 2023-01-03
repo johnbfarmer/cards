@@ -107,6 +107,7 @@ class Player extends BaseProcess {
             'handStrategy' => $this->handStrategy,
             'trickStrategy' => $this->trickStrategy,
             'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
+            'playersVoidInSuit' => $this->playersVoidInSuit,
         ]);
     }
 
@@ -120,6 +121,7 @@ class Player extends BaseProcess {
             'trickStrategy' => $this->trickStrategy,
             'cardsPlayedThisTrick' => [],
             'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
+            'playersVoidInSuit' => $this->playersVoidInSuit,
         ]);
     }
 

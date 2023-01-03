@@ -3,37 +3,31 @@
 namespace AppBundle\Cards;
 
 class ShootTheMoonSelector extends BaseSelector {
-	protected function selectLeadByStrategy($data) {
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+    public function selectLeadCard($data) {
+        if (count($data['eligibleCards']) === 1) {
+            return array_keys($data['eligibleCards'])[0];
+        }
+
+        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], [], $data['allCards']);
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
             $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
         }
+        $numberOfPlayersAfterMe = 3;
+        $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
+        $data['probabilityOfPointsThisTrick'] = .5; // tbi, this depends on the card. perhaps handle in the fcn below on a suit-by-suit basis
+        $dangerMatrix = $this->calculateDanger($data, $unplayedCards);
+$this->writeln($dangerMatrix);
         $ratings = [];
         $sortedRatings = [];
         $ret = [];
         foreach ($data['eligibleCards'] as $idx => $c) {
-            $suit = $c->getSuit();
-            $value = $c->getValue();
-            $unplayedCardsHigher = 0;
-            foreach ($unplayedCards[$suit] as $u) {
-                if ($u < $value) {
-                    $unplayedCardsHigher++;
-                }
-            }
-            $ct = count($unplayedCards[$suit]);
-
-            $threshold = .12;
-            if (!$ct || $probabilityOfSomeoneVoidInSuit[$suit] < $threshold) {
-                // low is good
-                $rating = 20 - 1 - $value;
-            } else {
-                $rating = 20 * $unplayedCardsHigher  / count($unplayedCards[$suit]);
-            }
+            $rating = $dangerMatrix[$idx]['rating'];
+$this->writeln("idx $idx rating $rating");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
-            print $idx.': '.$c->getDisplay() . " rating $rating -- {$probabilityOfSomeoneVoidInSuit[$suit]}\n";
+            print $idx.': '.$c->getDisplay() . " rating $rating\n";
         }
 
         foreach ($ratings as $arr1) {
@@ -51,7 +45,7 @@ class ShootTheMoonSelector extends BaseSelector {
             $ret[] = $arr['idx'];
         }
 
-        return $ret;
+        return $ret[0];
     }
 
     public function selectCardsToPass($data)
@@ -109,63 +103,59 @@ class ShootTheMoonSelector extends BaseSelector {
         }
 
         if ($this->allSameSuit($eligibleCards) && $data['isFirstTrick']) {
-            return array_keys($eligibleCards)[0]; // lowest club
+            return array_keys($eligibleCards)[0]; // lowest club <-- FIX; may not all be clubs. may want to select most dangerous
         }
 
         $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         $thisTrickHasPoints = $this->thisTrickHasPoints($cardsPlayedThisTrick);
         $amLastToPlay = count($cardsPlayedThisTrick) === 3;
         if ($thisTrickHasPoints) {
-        	$cardToTake = $amLastToPlay ? $this->lowestTakeCard($data) : $this->highestTakeCard($data);
-        	if ($cardToTake > -1) {
-        		return $cardToTake;
-        	}
+            $cardToTake = $amLastToPlay ? $this->lowestTakeCard($data) : $this->highestTakeCard($data);
+            if ($cardToTake > -1) {
+                return $cardToTake;
+            }
 
-        	return $this->mostDangerous($eligibleCards)[0]; // abandon STM
+            return $this->mostDangerous($eligibleCards)[0]; // abandon STM
         }
         if ($amLastToPlay) {
-        	return $this->leastDangerous($eligibleCards)[0];
+            return $this->leastDangerous($eligibleCards)[0];
         }
 
         $idx = $this->selectCardByAnalysis($data)[0];
 
-		return $idx;
+        return $idx;
     }
 
-	protected function selectCardByAnalysis($data) {
+    protected function selectCardByAnalysis($data) {
         $canTakeTrick = $this->canTakeThisTrick($data);
         if (!$canTakeTrick) {
-$this->writeln('i cant take it');
-        	return $this->leastDangerous($data['eligibleCards']);
+            return $this->leastDangerous($data['eligibleCards']);
         }
         $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
             $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
         }
         $suit = array_values($data['cardsPlayedThisTrick'])[0]->getSuit();
         $highestVal = 0;
         foreach ($data['cardsPlayedThisTrick'] as $c) {
-        	$value = $c->getValue();
-        	if ($value > $highestVal) {
-        		$highestVal = $value;
-        	}
+            $value = $c->getValue();
+            if ($value > $highestVal) {
+                $highestVal = $value;
+            }
         }
         $numberOfPlayersAfterMe = 3 - count($data['cardsPlayedThisTrick']);
         $probabilityOfPointsThisTrick = 1 - pow(1 - $probabilityOfSomeoneVoidInSuit[$suit], $numberOfPlayersAfterMe);
-        $vulnerabilityMatrix = $this->calculateVulnerabilities($data, $unplayedCards);
-$this->writeln($vulnerabilityMatrix);
+        $data['probabilityOfPointsThisTrick'] = $probabilityOfPointsThisTrick;
+        $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
+        $dangerMatrix = $this->calculateDanger($data, $unplayedCards);
+$this->writeln($dangerMatrix);
         $ratings = [];
         $sortedRatings = [];
         $ret = [];
         foreach ($data['eligibleCards'] as $idx => $c) {
-        	// what should the rating be based upon?
-        	// can I take this trick? if not throw low
-        	// is it likely I need to take this trick?
-        	// how does taking it affect my future hand?
-        	// how does not taking it affect my future hand?
             $value = $c->getValue();
             $takesTrick = $value > $highestVal;
             $unplayedCardsLower = 0;
@@ -176,27 +166,8 @@ $this->writeln($vulnerabilityMatrix);
             }
             $ct = count($unplayedCards[$suit]);
             $probabilityOfTakingTrick = !$takesTrick ? 0 : (!$ct ? 1 : $unplayedCardsLower / $ct);
-            $vulnerabilityDelta = $vulnerabilityMatrix[$idx];
-$this->writeln("numberOfPlayersAfterMe $numberOfPlayersAfterMe probabilityOfPointsThisTrick $probabilityOfPointsThisTrick probabilityOfTakingTrick $probabilityOfTakingTrick vulnerabilityDelta $vulnerabilityDelta");
-
-			$rating = $this->calculateRating([
-				'vulnerabilityDelta' => $vulnerabilityDelta,
-				'probabilityOfPointsThisTrick' => $probabilityOfPointsThisTrick,
-				'probabilityOfTakingTrick' => $probabilityOfTakingTrick,
-			]);
-            // we need here to consider:
-            //      do I have a lot of this suit?
-            //      should I try to get rid of vulnerable cards now or hold off?
-            //      how likely is it I will need a fall-back plan?
-
-            // try to get rid of low cards if relatively safe and you don't have many:
-            // $threshold = .12;
-            // if (!$ct || $probabilityOfSomeoneVoidInSuit[$suit] < $threshold) {
-            //     // low is good
-            //     $rating = 20 - 1 - $value;
-            // } else {
-            //     $rating = 20 * $unplayedCardsLower  / count($unplayedCards[$suit]);
-            // }
+            $rating = $dangerMatrix[$idx]['rating'];
+$this->writeln("idx $idx rating $rating");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
             print $idx.': '.$c->getDisplay() . " rating $rating -- {$probabilityOfSomeoneVoidInSuit[$suit]}\n";
         }
@@ -219,51 +190,125 @@ $this->writeln("numberOfPlayersAfterMe $numberOfPlayersAfterMe probabilityOfPoin
         return $ret;
     }
 
-    protected function calculateVulnerabilities($data, $unplayedCards)
+    protected function calculateDanger($data, $unplayedCards)
     {
-    	// average of each card's vulnerability, which is the likelihood it will be overtaken by another card of the same suit
-    	// v = 1 none of your cards can take anything; 0, they all can
-    	$tmp = [];
-    	foreach ($data['allCards'] as $idx => $c) {
-    		$suit = $c->getSuit();
-    		$ct = count($unplayedCards[$suit]);
-    		if (!$ct) {
-    			$tmp[$idx] = 0;
-    			continue;
-    		}
-    		$value = $c->getValue();
-            $unplayedCardsHigher = 0;
-            foreach ($unplayedCards[$suit] as $u) {
-                if ($u > $value) {
-                    $unplayedCardsHigher++;
+        $h = [];
+        // $cards = $data['allCards'];
+        $cards = $data['eligibleCards'];
+        arsort($cards);
+        foreach ($cards as $idx => $c) {
+            $s = $c->getSuit();
+            $v = $c->getValue();
+            $dspl = $c->getDisplay();
+            if (empty($h[$s])) {
+                $h[$s] = [];
+                $shields = 0;
+                $naturalIndex = 0;
+            }
+            $unplayedCardsLower = 0;
+            $naturalIndex++;
+            foreach($unplayedCards[$s] as $uc) {
+                if ($uc < $v) {
+                    $unplayedCardsLower++;
                 }
             }
-            $tmp[$idx] = $unplayedCardsHigher / $ct;
-    	}
+            $ct = count($unplayedCards[$s]);
+            $unplayedCardsHigher = $ct - $unplayedCardsLower;
+            $probabilityOfTakingTrick = !$ct ? 1 : $unplayedCardsLower / $ct;
+            $probabilityOfOthersTakingTrick = 1 - $probabilityOfTakingTrick;
+            $numberOfOthersExpectedNonvoid = 3 * (1 - $data['probabilityOfSomeoneVoidInSuit'][$s]);
+            if ($unplayedCardsHigher - $naturalIndex - $shields < 1) {
+                $shields++;
+            }
+            $probabilityOfImprovingHand = !$numberOfOthersExpectedNonvoid ? 0 : ($ct / $numberOfOthersExpectedNonvoid) - 1;
+            $riskTolerance = .2; // tbi
+            $probabilityOfOthersTakingPoints = $data['probabilityOfPointsThisTrick'] * $probabilityOfOthersTakingTrick;
+            $vulnerability = !$ct ? 0 : $ct > $shields ? ($unplayedCardsHigher - $shields) / ($ct - $shields) : 0;
+            $shieldedness = min(1 - $vulnerability, 1);
+            // probabilityOfImprovingHand .5 (i)
+            // probabilityOfOthersTakingPoints .2 (t)
+            // riskTolerance .8 (r)
+            // shieldedness .67 (s)
+            // rating formula: (t > 0 && s > .5) ? 1 - s : (i > t && r > t ? ri + (1-r)(1-t) : 1 - t)
+            $rating = ($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5) ? 1 - $shieldedness : ($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints ? $riskTolerance * $probabilityOfImprovingHand + (1-$riskTolerance) * (1-$probabilityOfOthersTakingPoints) : 1 - $probabilityOfOthersTakingPoints);
+$this->writeln("idx $idx $dspl");
+$this->writeln("probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints");
+$this->writeln("shieldedness $shieldedness");
+$this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
+$this->writeln("riskTolerance $riskTolerance");
+$this->writeln("part 1 probabilityOfOthersTakingPoints > 0 && shieldedness > .5:  ".($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5));
+$this->writeln("part 2 probabilityOfImprovingHand > probabilityOfOthersTakingPoints && riskTolerance > probabilityOfOthersTakingPoints: ".($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints));
+            $h[$s][] = [
+                'v' => $v,
+                'i' => $idx,
+                'd' => $dspl,
+                'danger' => 0,
+                'probabilityOfTakingTrick' => $probabilityOfTakingTrick,
+                'numberOfOthersExpectedNonvoid' => $numberOfOthersExpectedNonvoid,
+                'shieldedness' => $shields / ($naturalIndex + 1),
+                'rating' => $rating,
+            ];
+        }
 
-    	$totalVulnerability = 0;
-    	foreach ($tmp as $idx => $v) {
-    		$totalVulnerability += $v;
-    	}
+        $ret = [];
 
-    	$ct = count($data['allCards']);
-    	$tmp['total'] = $totalVulnerability / $ct;
-    	if ($ct < 2) {
-    		return $tmp;
-    	}
-    	foreach ($tmp as $idx => $v) {
-    		if ($idx !== 'total') {
-	    		$tmp[$idx] = ($totalVulnerability - $v) / ($ct - 1) - $tmp['total']; // vuln delta for each card in hand
-    		}
-    	}
+        foreach ($h as $suit => $arr) {
+            foreach ($arr as $thing1) {
+                $ret[$thing1['i']] = $thing1;
+            }
+        }
 
-    	return $tmp;
+        return $ret;
     }
 
-    protected function calculateRating($data)
+    protected function calculateDangerForSuit($suit, $arr, $unplayedCards)
     {
-    	$probabilityOfOthersTakingPoints = max($data['probabilityOfPointsThisTrick'] * (1 - $data['probabilityOfTakingTrick']), .001);
-    	$this->writeln("calculateRating: probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints vulnerabilityDelta {$data['vulnerabilityDelta']}");
-    	return -1 * $data['vulnerabilityDelta'] / $probabilityOfOthersTakingPoints;
+        // danger is a measure of how likely is the card to succeed now or later. example AK9 of a suit, they should all succeed eventually,
+        // but use this in combination with other metrics to not throw the 9 too early
+        rsort($arr);
+        $sizeOfBase = 3;
+        if (count($arr) < 3) {
+            $sizeOfBase = 2;
+        }
+        if (count($arr) < 2) {
+            $sizeOfBase = 1;
+        }
+        if (count($arr) < 2) {
+            $sizeOfBase = 0;
+        }
+        switch ($suit) {
+            case 0:
+                $hasTheTwo = false;
+                foreach ($arr as $idx => $vi) {
+                    if (!$vi['v']) {
+                        $hasTheTwo = true;
+                    }
+                }
+                if ($hasTheTwo) { // note if not 2 of clubs, use the default
+                    $base = 0;
+                    $ct = 0;
+                    foreach ($arr as $idx => $vi) {
+                        if ($ct++ < $sizeOfBase - 1) {
+                            $base += 12 - $idx - $vi['v'];
+                        }
+                    }
+                    foreach ($arr as $idx => $vi) {
+                        $arr[$idx]['danger'] = $vi['v'] ? $base * (12 - $vi['v']) : 0;
+                    }
+                    return $arr;
+                }
+            default:
+                $base = 0;
+                $ct = 0;
+                foreach ($arr as $idx => $vi) {
+                    if ($ct++ < $sizeOfBase) {
+                        $base += 12 - $idx - $vi['v'];
+                    }
+                }
+                foreach ($arr as $idx => $vi) {
+                    $arr[$idx]['danger'] = $base * (12 - $vi['v']) / 100;
+                }
+                return $arr;
+        }
     }
 }

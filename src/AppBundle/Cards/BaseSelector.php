@@ -43,19 +43,6 @@ class BaseSelector extends BaseProcess {
         return $allAreSameSuit;
     }
 
-    public function selectLeadCard($data)
-    {
-        $eligibleCards = $data['eligibleCards'];
-        if (count($eligibleCards) === 1) {
-            return array_keys($eligibleCards)[0];
-        }
-
-        $sortedEligibleCards = $this->selectLeadByStrategy($data);
-
-        return $sortedEligibleCards[0];
-
-    }
-
     public function getIdxBestCardAvailable($data)
     {
         $eligibleCards = $data['eligibleCards'];
@@ -412,7 +399,10 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return true;
     }
 
-    protected function selectLeadByStrategy($data) {
+    public function selectLeadCard($data) {
+        if (count($data['eligibleCards']) === 1) {
+            return array_keys($data['eligibleCards'])[0];
+        }
         $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
@@ -462,7 +452,7 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
             $ret[] = $arr['idx'];
         }
 
-        return $ret;
+        return $ret[0];
     }
 
     protected function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
