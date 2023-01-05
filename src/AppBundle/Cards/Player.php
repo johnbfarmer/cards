@@ -29,8 +29,8 @@ class Player extends BaseProcess {
         $this->name = $name;
         $this->baseStrategy = is_null($strategy) ? 'default' : $strategy;
         $this->selector = new DefaultSelector([]);
-        $this->riskTolerance = rand(1,100);
-        print $this->name . ' has riskTolerance ' . $this->riskTolerance . " (not yet used)\n";
+        $this->riskTolerance = rand(1,40)/100;
+        $this->writeln($this->name . ' has riskTolerance ' . $this->riskTolerance);
     }
 
     public function addHand($hand, $isHoldHand)
@@ -44,6 +44,7 @@ class Player extends BaseProcess {
         }
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
+        $this->playersVoidInSuit = [[],[],[],[]];
     }
 
     public function showHand()
@@ -100,6 +101,7 @@ class Player extends BaseProcess {
     protected function selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick)
     {
         return $this->selector->selectCard([
+            'riskTolerance' => $this->riskTolerance,
             'eligibleCards' => $eligibleCards,
             'allCards' => $this->hand->getCards(),
             'isFirstTrick' => $isFirstTrick,
@@ -114,8 +116,9 @@ class Player extends BaseProcess {
     protected function selectLeadCard($eligibleCards, $isFirstTrick)
     {
         return $this->selector->selectLeadCard([
-            'allCards' => $this->hand->getCards(),
+            'riskTolerance' => $this->riskTolerance,
             'eligibleCards' => $eligibleCards,
+            'allCards' => $this->hand->getCards(),
             'isFirstTrick' => $isFirstTrick,
             'handStrategy' => $this->handStrategy,
             'trickStrategy' => $this->trickStrategy,

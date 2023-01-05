@@ -3,27 +3,133 @@
 namespace AppBundle\Cards;
 
 class BaseSelector extends BaseProcess {
-    const STRATEGIES_ROUND = ['avoidPoints', 'shootTheMoon', 'blockShootTheMoon', 'protectOther', 'attackOther'];
-    const STRATEGIES_TRICK = ['highestNoTake', 'takeHigh', 'takeLow', 'dumpHigh', 'dumpLow'];
+    protected $importanceGivenToVoid = .5;
+
+    public function selectLeadCard($data) {
+        if (count($data['eligibleCards']) === 1) {
+            return array_keys($data['eligibleCards'])[0];
+        }
+
+        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], [], $data['allCards']);
+        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
+        $probabilityOfSomeoneVoidInSuit = [];
+        for ($i = 0; $i < 4; $i++) {
+            $numUnplayedThisSuit = count($unplayedCards[$i]);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+        }
+        $numberOfPlayersAfterMe = 3;
+        $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
+        $data['probabilityOfPointsThisTrick'] = .5; // tbi, this depends on the card. perhaps handle in the fcn below on a suit-by-suit basis
+        $ratingsMatrix = $this->calculateRatings($data, $unplayedCards);
+$this->writeln($ratingsMatrix);
+        $ratings = [];
+        $sortedRatings = [];
+        $ret = [];
+        foreach ($data['eligibleCards'] as $idx => $c) {
+            $rating = $ratingsMatrix[$idx]['rating'];
+$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
+            $ratings[] = ['rating' => $rating, 'idx' => $idx];
+        }
+
+        foreach ($ratings as $arr1) {
+            $rating = $arr1['rating'];
+            $insertIndex = 0;
+            foreach ($sortedRatings as $localIdx => $arr2) {
+                if ($rating <= $arr2['rating']) {
+                    $insertIndex = $localIdx + 1;
+                }
+            }
+            array_splice($sortedRatings, $insertIndex, 0, [$arr1]);
+        }
+
+        foreach ($sortedRatings as $arr) {
+            $ret[] = $arr['idx'];
+        }
+
+        return $ret[0];
+    }
 
     public function selectCard($data)
     {
         $eligibleCards = $data['eligibleCards'];
-        $handStrategy = $data['handStrategy'];
-        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
-        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
         if (count($eligibleCards) === 1) {
             return array_keys($eligibleCards)[0];
         }
 
-        if ($this->allSameSuit($eligibleCards)) {
-            if ($data['isFirstTrick']) {
+        [$singleSuit, $suit] = $this->allSameSuit($eligibleCards);
+        if ($singleSuit && $data['isFirstTrick']) {
+            if ($suit == 0) {
                 return array_keys($eligibleCards)[count($eligibleCards) - 1];
             }
-            return $this->getIdxBestCardAvailableOneSuit($data);
+
+            // unlikely, but suppose you have only spades or diamonds and point cards...
+            return array_keys($eligibleCards)[count($eligibleCards) - 1];
         }
 
-        return $this->getIdxBestCardAvailable($data);
+        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
+        $thisTrickHasPoints = $this->thisTrickHasPoints($cardsPlayedThisTrick);
+        $amLastToPlay = count($cardsPlayedThisTrick) === 3;
+        $data['thisTrickHasPoints'] = $thisTrickHasPoints;
+        if (!$thisTrickHasPoints && $amLastToPlay) {
+            return $this->mostDangerous($eligibleCards)[0];
+        }
+
+        $idx = $this->selectCardByAnalysis($data)[0];
+
+        return $idx;
+    }
+
+    protected function selectCardByAnalysis($data) {
+        $canTakeTrick = $this->canTakeThisTrick($data);
+        if (!$canTakeTrick) {
+            return $this->mostDangerous($data['eligibleCards']);
+        }
+        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
+        $probabilityOfSomeoneVoidInSuit = [];
+        for ($i = 0; $i < 4; $i++) {
+            $numUnplayedThisSuit = count($unplayedCards[$i]);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+        }
+        $suit = array_values($data['cardsPlayedThisTrick'])[0]->getSuit();
+        $highestVal = 0;
+        foreach ($data['cardsPlayedThisTrick'] as $c) {
+            $value = $c->getValue();
+            if ($value > $highestVal) {
+                $highestVal = $value;
+            }
+        }
+        $numberOfPlayersAfterMe = 3 - count($data['cardsPlayedThisTrick']);
+        $probabilityOfPointsThisTrick = $data['isFirstTrick'] ? 0 : 1 - pow(1 - $probabilityOfSomeoneVoidInSuit[$suit], $numberOfPlayersAfterMe);
+        $data['probabilityOfPointsThisTrick'] = $probabilityOfPointsThisTrick;
+        $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
+        $ratingsMatrix = $this->calculateRatings($data, $unplayedCards);
+$this->writeln($ratingsMatrix);
+        $ratings = [];
+        $sortedRatings = [];
+        $ret = [];
+        foreach ($data['eligibleCards'] as $idx => $c) {
+            $rating = $ratingsMatrix[$idx]['rating'];
+$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoid pts)");
+            $ratings[] = ['rating' => $rating, 'idx' => $idx];
+        }
+
+        foreach ($ratings as $arr1) {
+            $rating = $arr1['rating'];
+            $insertIndex = 0;
+            foreach ($sortedRatings as $localIdx => $arr2) {
+                if ($rating <= $arr2['rating']) {
+                    $insertIndex = $localIdx + 1;
+                }
+            }
+            array_splice($sortedRatings, $insertIndex, 0, [$arr1]);
+        }
+
+        foreach ($sortedRatings as $arr) {
+            $ret[] = $arr['idx'];
+        }
+
+        return $ret;
     }
 
     public function allSameSuit($cards)
@@ -40,7 +146,7 @@ class BaseSelector extends BaseProcess {
             }
         }
 
-        return $allAreSameSuit;
+        return [$allAreSameSuit, $suit];
     }
 
     public function getIdxBestCardAvailable($data)
@@ -70,42 +176,6 @@ class BaseSelector extends BaseProcess {
                 $dangerous = $this->mostDangerous($eligibleCards);
 
                 return $dangerous[0]; // <-- huh? what about all the work above?
-        }
-    }
-
-    public function getIdxBestCardAvailableOneSuit($data)
-    {
-        $eligibleCards = $data['eligibleCards'];
-        $handStrategy = $data['handStrategy'];
-        $trickStrategy = $data['trickStrategy'];
-        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
-        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
-        $idxToReturn = -1;
-
-        // get the probability of taking points with each card
-        $data = $this->rateDanger($data, true); // tbi here
-        switch($trickStrategy) {
-            case 'highestNoTake':
-            default:
-                $suit = null;
-                $highestVal = -1;
-                $takingTrick = 0;
-                foreach ($cardsPlayedThisTrick as $playerId => $c) {
-                    if (is_null($suit)) {
-                        $suit = $c->getSuit();
-                    }
-                    if ($c->getSuit() === $suit && $c->getValue() > $highestVal) {
-                        $highestVal = $c->getValue();
-                        $takingTrick = $playerId;
-                    }
-                }
-                foreach ($eligibleCards as $cardIdx => $c) {
-                    if ($c->getValue() < $highestVal) {
-                        $idxToReturn++;
-                    }
-                }
-                $idx = max($idxToReturn, 0);
-                return array_keys($eligibleCards)[$idx];
         }
     }
 
@@ -399,60 +469,83 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return true;
     }
 
-    public function selectLeadCard($data) {
-        if (count($data['eligibleCards']) === 1) {
-            return array_keys($data['eligibleCards'])[0];
-        }
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
-        $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
-        $probabilityOfSomeoneVoidInSuit = [];
-        for ($i = 0; $i < 4; $i++) {
-            $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
-        }
-        $ratings = [];
-        $sortedRatings = [];
-        $ret = [];
-        foreach ($data['eligibleCards'] as $idx => $c) {
-            $suit = $c->getSuit();
-            $value = $c->getValue();
+    protected function calculateRatings($data, $unplayedCards)
+    {
+        $h = [];
+        $cards = $data['eligibleCards'];
+        $myCardCounts = $this->countMyCardsBySuit($cards);
+        $riskTolerance = $data['riskTolerance'];
+        foreach ($cards as $idx => $c) {
+            $s = $c->getSuit();
+            $v = $c->getValue();
+            $dspl = $c->getDisplay();
+            if (empty($h[$s])) {
+                $h[$s] = [];
+                $shields = 0;
+                $naturalIndex = 0;
+                $shieldedness = 0;
+            }
             $unplayedCardsLower = 0;
-            foreach ($unplayedCards[$suit] as $u) {
-                if ($u < $value) {
+            foreach($unplayedCards[$s] as $uc) {
+                if ($uc < $v) {
                     $unplayedCardsLower++;
                 }
             }
-            $ct = count($unplayedCards[$suit]);
-            $rating = $this->calculateExpectedPoints(
-                $suit,
-                $value,
-                [
-                    'unplayedCards' => $unplayedCards,
-                    'probabilityOfSomeoneVoidInSuit' => $probabilityOfSomeoneVoidInSuit[$suit]
-                ]
-            );
-            $rating -= .001 * $value;
-            $ratings[] = ['rating' => $rating, 'idx' => $idx];
-            print $idx.': '.$c->getDisplay() . " rating $rating (potential points * ";
-            print $probabilityOfSomeoneVoidInSuit[$suit] . ' * ' . $unplayedCardsLower . ' / ' . count($unplayedCards[$suit]) . ") - .001 * $value\n";
-        }
-
-        foreach ($ratings as $arr1) {
-            $rating = $arr1['rating'];
-            $insertIndex = 0;
-            foreach ($sortedRatings as $localIdx => $arr2) {
-                if ($rating >= $arr2['rating']) {
-                    $insertIndex = $localIdx + 1;
-                }
+            $ct = count($unplayedCards[$s]);
+            $unplayedCardsHigher = $ct - $unplayedCardsLower;
+            $probabilityOfTakingTrick = !$ct ? 1 : $unplayedCardsLower / $ct;
+            $probabilityOfSomeoneVoidInSuit = $data['probabilityOfSomeoneVoidInSuit'][$s];
+            $numberOfOthersExpectedNonvoid = 3 * $probabilityOfSomeoneVoidInSuit;
+$this->writeln("unplayedCardsLower $unplayedCardsLower naturalIndex $naturalIndex shields $shields");
+            if ($unplayedCardsLower - $naturalIndex++ - $shields < 1) {
+                $shields++;
             }
-            array_splice($sortedRatings, $insertIndex, 0, [$arr1]);
+            if ($ct) {
+                $shields += ($ct - $unplayedCardsLower) / $ct;
+                $shieldedness = !$unplayedCardsLower ? 0 : ($shields + $naturalIndex) / $unplayedCardsLower;
+            }
+            $probabilityOfImprovingHand = !$numberOfOthersExpectedNonvoid || !$ct ? 0 : (1 - $this->importanceGivenToVoid) * ($unplayedCardsLower / $ct) + $this->importanceGivenToVoid * (($ct - $myCardCounts[$s]) / $ct);
+            $probabilityOfTakingPoints = $data['probabilityOfPointsThisTrick'] * $probabilityOfTakingTrick;
+            // $vulnerability = !$ct ? 0 : $ct > $shields ? ($unplayedCardsHigher - $shields) / ($ct - $shields) : 0;
+            // $shieldedness = min(1 - $vulnerability, 1);
+            $naturalIndex++;
+            // probabilityOfImprovingHand .5 (i)
+            // probabilityOfOthersTakingPoints .2 (t)
+            // riskTolerance .8 (r)
+            // shieldedness .67 (s)
+            // rating formula: (t > 0 && s > .5) ? 1 - s : (i > t && r > t ? ri + (1-r)(1-t) : 1 - t)
+            $rating = ($probabilityOfTakingPoints === 0 && $shieldedness > .5) ? 1 - $shieldedness : ($probabilityOfImprovingHand > $probabilityOfTakingPoints && $riskTolerance < $probabilityOfTakingPoints ? $riskTolerance * $probabilityOfImprovingHand + (1-$riskTolerance) * (1-$probabilityOfTakingPoints) : .5*(1 - $probabilityOfTakingPoints) + .5 * $probabilityOfImprovingHand);
+$this->writeln("idx $idx $dspl");
+$this->writeln("probabilityOfTakingPoints $probabilityOfTakingPoints");
+$this->writeln("shieldedness $shieldedness");
+$this->writeln("probabilityOfSomeoneVoidInSuit ".$data['probabilityOfSomeoneVoidInSuit'][$s]);
+$this->writeln("numberOfOthersExpectedNonvoid $numberOfOthersExpectedNonvoid");
+$this->writeln("unplayedCardsHigher $unplayedCardsHigher");
+$this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
+$this->writeln("riskTolerance $riskTolerance");
+$this->writeln("part 1 probabilityOfTakingPoints === 0 && shieldedness > .5:  ".($probabilityOfTakingPoints === 0 && $shieldedness > .5));
+$this->writeln("part 2 probabilityOfImprovingHand > probabilityOfTakingPoints && riskTolerance < probabilityOfTakingPoints: ".($probabilityOfImprovingHand > $probabilityOfTakingPoints && $riskTolerance < $probabilityOfTakingPoints));
+            $h[$s][] = [
+                'v' => $v,
+                'i' => $idx,
+                'd' => $dspl,
+                'danger' => 0,
+                'probabilityOfTakingTrick' => $probabilityOfTakingTrick,
+                'numberOfOthersExpectedNonvoid' => $numberOfOthersExpectedNonvoid,
+                'shieldedness' => $shields / ($naturalIndex + 1),
+                'rating' => $rating,
+            ];
         }
 
-        foreach ($sortedRatings as $arr) {
-            $ret[] = $arr['idx'];
+        $ret = [];
+
+        foreach ($h as $suit => $arr) {
+            foreach ($arr as $thing1) {
+                $ret[$thing1['i']] = $thing1;
+            }
         }
 
-        return $ret[0];
+        return $ret;
     }
 
     protected function getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
@@ -508,6 +601,7 @@ $this->writeln("There is a $p1 chance that one player has none given $numUnplaye
 
     public function mostDangerous($cards)
     {
+        $this->writeln('mostDangerous');
         uasort(
             $cards,
             function($a, $b) {
@@ -520,6 +614,7 @@ $this->writeln("There is a $p1 chance that one player has none given $numUnplaye
 
     public function leastDangerous($cards)
     {
+        $this->writeln('leastDangerous');
         uasort(
             $cards,
             function($a, $b) {
