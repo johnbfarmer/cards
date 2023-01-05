@@ -55,9 +55,9 @@ class Card  extends BaseProcess{
                 if ($this->value > 10) {
                     return 90;
                 }
-                return 0;
+                return 0.1 * $this->value;
             default:
-                return $this->value > 9 ? $this->value : 0;
+                return $this->value;
         }
     }
 
