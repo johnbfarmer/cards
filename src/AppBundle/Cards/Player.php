@@ -14,22 +14,21 @@ class Player extends BaseProcess {
     protected $cardsPlayedThisRound = [];
     protected $playersVoidInSuit = [[],[],[],[]]; //playersVoidInSuit[0][2] means p2 void in suit 0
     protected $isHoldHand;
-    protected $baseStrategy;
     protected $handStrategy;
     protected $trickStrategy;
     protected $selector;
 
-    public function __construct($id, $name = null, $strategy = null)
+    public function __construct($id, $data = null)
     {
+        $name = $data['name'];
         if (is_null($name)) {
             $name = 'Player ' . $id;
         }
 
         $this->id = $id;
         $this->name = $name;
-        $this->baseStrategy = is_null($strategy) ? 'default' : $strategy;
         $this->selector = new DefaultSelector([]);
-        $this->riskTolerance = rand(1,40)/100;
+        $this->riskTolerance = !empty($data['riskTolerance']) ? $data['riskTolerance'] : rand(1,40)/100;
         $this->writeln($this->name . ' has riskTolerance ' . $this->riskTolerance);
     }
 
@@ -110,6 +109,7 @@ class Player extends BaseProcess {
             'trickStrategy' => $this->trickStrategy,
             'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
             'playersVoidInSuit' => $this->playersVoidInSuit,
+            'yetToPlay' => array_values(array_diff(array_diff([1,2,3,4], array_keys($cardsPlayedThisTrick)), [$this->id])),
         ]);
     }
 
@@ -125,6 +125,7 @@ class Player extends BaseProcess {
             'cardsPlayedThisTrick' => [],
             'cardsPlayedThisRound' => $this->cardsPlayedThisRound,
             'playersVoidInSuit' => $this->playersVoidInSuit,
+            'yetToPlay' => array_values(array_diff([1,2,3,4], [$this->id])),
         ]);
     }
 
@@ -162,9 +163,8 @@ class Player extends BaseProcess {
                 $takesTrick = $id;
                 $topValue = $value;
             }
-            if ($suit !== $leadSuit) {
-                $this->playersVoidInSuit[$leadSuit] = $id;
-// print "$id is void in $leadSuit\n";
+            if ($suit !== $leadSuit && !in_array($id, $this->playersVoidInSuit[$leadSuit])) {
+                $this->playersVoidInSuit[$leadSuit][] = $id;
             }
         }
         $this->gameScores[$takesTrick] += $points;

@@ -13,8 +13,12 @@ class Game extends BaseProcess {
     protected $roundCount = 1;
     protected $gameOver = false;
     protected $winner = 'nobody';
-    protected $names = ['Dilbert', 'Ululua', 'Sally', 'Smelch'];
-    protected $strategies = ['default', 'default', 'default', 'default',];
+    protected $playerData = [
+        ['name' => 'Dilbert', 'riskTolerance' => 0.1],
+        ['name' => 'Ululua', 'riskTolerance' => 0.2],
+        ['name' => 'Sally', 'riskTolerance' => 0.3],
+        ['name' => 'Smelch', 'riskTolerance' => 0.4],
+    ];
 
     public function __construct($params)
     {
@@ -26,7 +30,7 @@ class Game extends BaseProcess {
     public function createPlayers()
     {
         for ($i = 1; $i <= $this->numberOfPlayers; $i++) {
-            $this->players[$i] = new Player($i, $this->names[$i-1], $this->strategies[$i-1]);
+            $this->players[$i] = new Player($i, $this->playerData[$i-1]);
             $this->scores[$i] = 0;
         }
     }

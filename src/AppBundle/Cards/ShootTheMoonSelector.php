@@ -13,13 +13,13 @@ class ShootTheMoonSelector extends BaseSelector {
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
             $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfOneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
         }
-        $numberOfPlayersAfterMe = 3;
+        $data['numberOfPlayersAfterMe'] = 3;
         $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
         $data['probabilityOfPointsThisTrick'] = .5; // tbi, this depends on the card. perhaps handle in the fcn below on a suit-by-suit basis
         $ratingsMatrix = $this->calculateRatings($data, $unplayedCards);
-$this->writeln($ratingsMatrix);
+// $this->writeln($ratingsMatrix);
         $ratings = [];
         $sortedRatings = [];
         $ret = [];
@@ -141,7 +141,7 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
             $numUnplayedThisSuit = count($unplayedCards[$i]);
-            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfSomeoneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
+            $probabilityOfSomeoneVoidInSuit[$i] = $data['playersVoidInSuit'][$i] ? 1 : $this->getProbabilityOfOneVoidInSuit($numUnplayed, $numUnplayedThisSuit);
         }
         $suit = array_values($data['cardsPlayedThisTrick'])[0]->getSuit();
         $highestVal = 0;
@@ -155,8 +155,8 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
         $probabilityOfPointsThisTrick = 1 - pow(1 - $probabilityOfSomeoneVoidInSuit[$suit], $numberOfPlayersAfterMe);
         $data['probabilityOfPointsThisTrick'] = $probabilityOfPointsThisTrick;
         $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
+        $data['numberOfPlayersAfterMe'] = $numberOfPlayersAfterMe;
         $ratingsMatrix = $this->calculateRatings($data, $unplayedCards);
-$this->writeln($ratingsMatrix);
         $ratings = [];
         $sortedRatings = [];
         $ret = [];
@@ -220,37 +220,31 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
             $probabilityOfTakingTrick = !$ct ? 1 : $unplayedCardsLower / $ct;
             $probabilityOfOthersTakingTrick = 1 - $probabilityOfTakingTrick;
             $probabilityOfSomeoneVoidInSuit = $data['probabilityOfSomeoneVoidInSuit'][$s];
-            $numberOfOthersExpectedNonvoid = 3 * $probabilityOfSomeoneVoidInSuit;
             if ($unplayedCardsHigher - $naturalIndex - $shields < 1) {
                 $shields++;
             }
-            $probabilityOfImprovingHand = !$numberOfOthersExpectedNonvoid || !$ct ? 0 : $unplayedCardsHigher / $numberOfOthersExpectedNonvoid / $ct;
+            $probabilityOfImprovingHand = !$ct ? 0 : $unplayedCardsHigher / $ct;
             $riskTolerance = $data['riskTolerance'];
             $probabilityOfOthersTakingPoints = $data['probabilityOfPointsThisTrick'] * $probabilityOfOthersTakingTrick;
             $vulnerability = !$ct ? 0 : $ct > $shields ? ($unplayedCardsHigher - $shields) / ($ct - $shields) : 0;
             $shieldedness = min(1 - $vulnerability, 1);
-            // probabilityOfImprovingHand .5 (i)
-            // probabilityOfOthersTakingPoints .2 (t)
-            // riskTolerance .8 (r)
-            // shieldedness .67 (s)
-            // rating formula: (t > 0 && s > .5) ? 1 - s : (i > t && r > t ? ri + (1-r)(1-t) : 1 - t)
             $rating = ($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5) ? 1 - $shieldedness : ($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints ? $riskTolerance * $probabilityOfImprovingHand + (1-$riskTolerance) * (1-$probabilityOfOthersTakingPoints) : 1 - $probabilityOfOthersTakingPoints);
 $this->writeln("idx $idx $dspl");
-$this->writeln("probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints");
-$this->writeln("numberOfOthersExpectedNonvoid $numberOfOthersExpectedNonvoid");
-$this->writeln("probabilityOfSomeoneVoidInSuit $probabilityOfSomeoneVoidInSuit");
-$this->writeln("shieldedness $shieldedness");
+// $this->writeln("probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints");
+// $this->writeln("probabilityOfSomeoneVoidInSuit $probabilityOfSomeoneVoidInSuit");
+// $this->writeln("shieldedness $shieldedness");
 $this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
-$this->writeln("riskTolerance $riskTolerance");
-$this->writeln("part 1 probabilityOfOthersTakingPoints > 0 && shieldedness > .5:  ".($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5));
-$this->writeln("part 2 probabilityOfImprovingHand > probabilityOfOthersTakingPoints && riskTolerance > probabilityOfOthersTakingPoints: ".($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints));
+// $this->writeln("riskTolerance $riskTolerance");
+// $this->writeln("part 1 probabilityOfOthersTakingPoints > 0 && shieldedness > .5:  ".($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5));
+// $this->writeln("part 2 probabilityOfImprovingHand > probabilityOfOthersTakingPoints && riskTolerance > probabilityOfOthersTakingPoints: ".($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints));
+$ratingCalc = ($probabilityOfOthersTakingPoints > 0 && $shieldedness > .5) ? "1 - $shieldedness" : ($probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints ? "$riskTolerance * $probabilityOfImprovingHand + ".(1-$riskTolerance)." * ".(1-$probabilityOfOthersTakingPoints) : "1 - $probabilityOfOthersTakingPoints");
+$this->writeln("rating $rating ($ratingCalc)");
             $h[$s][] = [
                 'v' => $v,
                 'i' => $idx,
                 'd' => $dspl,
                 'danger' => 0,
                 'probabilityOfTakingTrick' => $probabilityOfTakingTrick,
-                'numberOfOthersExpectedNonvoid' => $numberOfOthersExpectedNonvoid,
                 'shieldedness' => $shields / ($naturalIndex + 1),
                 'rating' => $rating,
             ];
