@@ -36,10 +36,12 @@ class Player extends BaseProcess {
     {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
-        $this->handStrategy = $this->selector->getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores);
+        $this->handStrategy = $this->selector->getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores, $this->riskTolerance);
         if ($this->handStrategy === 'shootTheMoon') {
             print $this->name . ' says I shall try to shoot the moon'."\n";
             $this->selector = new ShootTheMoonSelector([]);
+        } else {
+            $this->selector = new DefaultSelector([]);
         }
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
@@ -88,12 +90,28 @@ class Player extends BaseProcess {
     public function receivePassedCards($c)
     {
         $this->hand->addCards($c);
-        if ($this->handStrategy === 'shootTheMoon') {
-            $this->handStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores);
-            if ($this->handStrategy !== 'shootTheMoon') {
-                print $this->name . ' says I shall no longer shoot the moon'."\n";
-                $this->selector = new DefaultSelector([]);
-            }
+        $newHandStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), true, $this->gameScores, $this->riskTolerance);
+        if ($this->handStrategy !== $newHandStrategy) {
+            $this->handStrategy = $newHandStrategy;
+            $this->selector = $this->getSelector();
+            $this->writeln($this->name . ' says I shall change my strategy to ' . $this->handStrategy);
+        }
+        // if ($this->handStrategy === 'shootTheMoon') {
+        //     $this->handStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores, $this->riskTolerance);
+        //     if ($this->handStrategy !== 'shootTheMoon') {
+        //         print $this->name . ' says I shall no longer shoot the moon'."\n";
+        //         $this->selector = new DefaultSelector([]);
+        //     }
+        // }
+    }
+
+    protected function getSelector()
+    {
+        switch ($this->handStrategy) {
+            case 'shootTheMoon':
+                return new ShootTheMoonSelector([]);
+            default:
+                return new DefaultSelector([]);
         }
     }
 

@@ -4,6 +4,9 @@ namespace AppBundle\Cards;
 
 class BaseSelector extends BaseProcess {
     protected $importanceGivenToVoid = .25;
+    protected $avpThreshold = 440; // if avp > this and stm < stmThreshold, go for it
+    protected $stmThreshold = 150;
+    protected $handAnalysis = ['AVP' => [[],[],[],[]], 'STM' => [[],[],[],[]]];
 
     public function selectLeadCard($data) {
         if (count($data['eligibleCards']) === 1) {
@@ -104,6 +107,9 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
             if ($s == 2 || ($s == 3 && $value == 10)) {
                 $probabilityOfPointsThisTrick = 1;
             }
+            if ($s == 3 && $value > 10 && !empty($unplayedCards[3][10])) {
+                $probabilityOfPointsThisTrick = .5 * $numberOfPlayersAfterMe;
+            }
         }
         $data['probabilityOfPointsThisTrick'] = $probabilityOfPointsThisTrick;
         $data['probabilityOfSomeoneVoidInSuit'] = $probabilityOfSomeoneVoidInSuit;
@@ -154,36 +160,6 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoid pts)");
         }
 
         return [$allAreSameSuit, $suit];
-    }
-
-    public function getIdxBestCardAvailable($data)
-    {
-        $eligibleCards = $data['eligibleCards'];
-        $handStrategy = $data['handStrategy'];
-        $trickStrategy = $data['trickStrategy'];
-        $cardsPlayedThisRound = $data['cardsPlayedThisRound'];
-        $cardsPlayedThisTrick = $data['cardsPlayedThisTrick'];
-        $idxToReturn = 0;
-        switch($trickStrategy) {
-            case 'highestNoTake':
-            default:
-                $suit = null;
-                $highestVal = -1;
-                $takingTrick = 0;
-                foreach ($cardsPlayedThisTrick as $playerId => $c) {
-                    if (is_null($suit)) {
-                        $suit = $c->getSuit();
-                    }
-                    if ($c->getSuit() === $suit && $c->getValue() > $highestVal) {
-                        $highestVal = $c->getValue();
-                        $takingTrick = $playerId;
-                    }
-                }
-                // we do not have to follow suit, so throw most dangerous
-                $dangerous = $this->mostDangerous($eligibleCards);
-
-                return $dangerous[0]; // <-- huh? what about all the work above?
-        }
     }
 
     protected function lowestTakeCard($data)
@@ -239,6 +215,9 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
     // return hand indices in reverse order of 3 cards to pass
     public function selectCardsToPass($data)
     {
+// $this->writeln('new alg says pass');
+// $this->writeln($this->selectCardsToPassNew()['AVP']);
+return $this->selectCardsToPassNew()['AVP'];
         $cards = $data['hand'];
         $scores = $data['gameScores'];
         $strategy = $data['strategy'];
@@ -278,12 +257,33 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
             }
         }
         arsort($indexes);
-
+$this->writeln('passing');
+$this->writeln($indexes);
         return $indexes;
+    }
+
+    protected function selectCardsToPassNew()
+    {
+        $ret = [];
+        foreach ($this->handAnalysis as $strategy => $arr) {
+            $topThree = [];
+            foreach ($arr as $idx => $danger) {
+                $topThree[$idx] = $danger;
+                arsort($topThree);
+                $topThree = array_slice($topThree, 0, 3, true);
+            }
+            $idxs = array_keys($topThree);
+            rsort($idxs);
+            $ret[$strategy] = $idxs;
+        }
+
+        return $ret;
     }
 
     protected function selectCardsToPassForShootingTheMoon($cards, $all = false)
     {
+        $this->writeln('new says pass if shooting');
+        $this->writeln($this->selectCardsToPassNew()['STM']);
         $myCardCounts = $this->countMyCardsBySuit($cards);
         $h = [];
         foreach ($cards as $idx => $c) {
@@ -454,26 +454,118 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return false;
     }
 
-    public function getRoundStrategy($cards, $isHoldHand, $scores)
+    public function getRoundStrategy($cards, $isHoldHand, $scores, $riskTolerance)
     {
-        if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores)) {
+        $this->analyzeHand($cards);
+        if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores, $riskTolerance)) {
             return 'shootTheMoon';
         }
         return 'avoidPoints';
     }
 
-    public function shouldShootTheMoon($cards, $noPassing, $scores)
+    protected function analyzeHand($cards)
     {
-        $crds = $this->selectCardsToPassForShootingTheMoon($cards, true);
-        $ct = 0;
-        $numberOfCardsToPass = $noPassing ? 0 : 3;
-        foreach ($crds as $c) {
-            if (++$ct >  $numberOfCardsToPass && $c['danger'] > 100) {
-                return false;
+        $unplayedCards = $this->getCardsRemaining([], [], $cards);
+        $myCardCounts = $this->countMyCardsBySuit($cards);
+        $s = -1;
+        foreach ($cards as $idx => $c) {
+            if ($s != $c->getSuit()) {
+                $s = $c->getSuit();
+                $myCardsLower = 0;
+                $ct = count($unplayedCards[$s]);
             }
+            $v = $c->getValue();
+            $unplayedCardsLower = 0;
+            foreach($unplayedCards[$s] as $uc) {
+                if ($uc < $v) {
+                    $unplayedCardsLower++;
+                } else {
+                    break;
+                }
+            }
+            $unplayedCardsHigher = $ct - $unplayedCardsLower;
+            $myCardsHigher = $myCardCounts[$s] - $myCardsLower - 1;
+            $avpDanger = $unplayedCardsLower * max($unplayedCardsLower - $myCardsLower, 0);
+            $stmDanger = $unplayedCardsHigher * max($unplayedCardsHigher - $myCardsHigher, 0);
+            if ($v == 0 && $s == 0) {
+                $myCardsLower--; // 2 of clubs does not count as a myCardsLower
+                $avpDanger = 0;
+                $stmDanger = 0;
+            }
+            if ($s == 3 && $v >= 10) {
+                $avpDanger *= 3;
+            }
+            if ($s == 3 && $v < 10) {
+                $avpDanger = 0; // we love low spades for avp
+            }
+            if ($s == 2) {
+                $stmDanger *= 8; // low hearts are deadly
+            }
+            $this->handAnalysis['AVP'][$idx] = $avpDanger;
+            $this->handAnalysis['STM'][$idx] = $stmDanger;
+            // $this->handAnalysis['AVP'][$s][$v] = $unplayedCardsLower * max($unplayedCardsLower - $myCardsLower, 0);
+            // $this->handAnalysis['STM'][$s][$v] = $unplayedCardsHigher * max($unplayedCardsHigher - $myCardsHigher, 0);
+            $myCardsLower++;
+        }
+$this->writeln($this->handAnalysis);
+    }
+
+    protected function combo($a, $b) {
+        if ($a < $b) {
+            return null; // TBI?
         }
 
-        return true;
+        if ($b === $a || !$b) {
+            return 1;
+        }
+
+        if ($b === $a - 1 || $b === 1) {
+            return $a;
+        }
+
+        $x = max($b, $a-$b);
+        $y = min($b, $a-$b);
+        $num = $a; $denom = $y;
+        $tmp = $denom;
+        while (--$tmp) {$denom *= $tmp;}
+        $tmp = $num;
+        while (--$tmp > $x) {$num *= $tmp;}
+
+        return $num/$denom;
+    }
+
+    protected function probabilityOfNumSuit($numUnknown, $numUnknownInSuit, $targetNumber) {
+        if ($targetNumber > $numUnknownInSuit || $targetNumber < 0) {
+            return 0;
+        }
+        $players = 3;
+        $numCardsOtherPlayers = ($players - 1) / $players * $a;
+        return combo($numUnknownInSuit, $targetNumber) * combo($numCardsOtherPlayers, $numUnknownInSuit-$targetNumber) / combo($numUnknown, $numUnknownInSuit);
+    }
+
+    public function shouldShootTheMoon($cards, $noPassing, $scores, $riskTolerance)
+    {
+        $riskSumAvp = 0;
+        $riskSumStm = 0;
+        foreach ($this->handAnalysis['AVP'] as $danger) {
+            $riskSumAvp += $danger;
+        }
+        foreach ($this->handAnalysis['STM'] as $danger) {
+            $riskSumStm += $danger;
+        }
+        if (!$noPassing) {
+            $cardsToPass = $this->selectCardsToPassNew();
+            foreach ($cardsToPass['AVP'] as $idx) {
+                $riskSumAvp -= $this->handAnalysis['AVP'][$idx];
+            }
+            foreach ($cardsToPass['STM'] as $idx) {
+                $riskSumStm -= $this->handAnalysis['STM'][$idx];
+            }
+        } else {
+            $this->writeln("shouldShootTheMoon $riskTolerance, $riskSumAvp, $riskSumStm");
+        }
+
+        return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm);
     }
 
     protected function calculateRatings($data, $unplayedCards)
@@ -492,6 +584,9 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
             $probabilityOfPointsThisTrick = $data['probabilityOfPointsThisTrick'];
             if ($s == 2 || $isQueenOfSpades) {
                 $probabilityOfPointsThisTrick = 1;
+            }
+            if ($takesQueenOfSpades) {
+                $probabilityOfPointsThisTrick = .5 * $numberOfPlayersAfterMe;
             }
             $dspl = $c->getDisplay();
             if (empty($h[$s])) {
@@ -555,7 +650,7 @@ $this->writeln("rating $rating ($riskTolerance * $probabilityOfImprovingHand + (
                 'danger' => 0,
                 'probabilityOfTakingTrick' => $probabilityOfTakingTrick,
                 'shieldedness' => $shields / ($naturalIndex + 1),
-                'rating' => $rating,
+                'rating' => $rating + rand(-50,50)/10000,
             ];
         }
 
@@ -672,9 +767,43 @@ $this->writeln("There is a ".(100 * $p1)."% chance that one player has none give
         $unplayedCards = [];
 
         for ($suit=0; $suit<4; $suit++) {
-            $unplayedCards[$suit] = array_diff($allCards[$suit], $playedCards[$suit]);
+            $unplayedCards[$suit] = array_values(array_diff($allCards[$suit], $playedCards[$suit]));
         }
 
         return $unplayedCards;
+    }
+
+    protected function rateHandBySuit($data, $unplayedCards, $suit)
+    {
+        // [], 2, 23, 234 perfect score for example
+        // rate for normal and for STM here ?
+        // score is shieldedness
+        $cards = $data['eligibleCards'];
+        $shields = 0;
+        foreach ($cards as $idx => $c) {
+            if ($c->getSuit() != $suit) {
+                continue;
+            }
+            $v = $c->getValue();
+            $dspl = $c->getDisplay();
+            $void = $data['playersVoidInSuit'][$s];
+            $naturalIndex = 0;
+            $shieldedness = 0;
+            $unplayedCardsLower = 0;
+            foreach($unplayedCards[$s] as $uc) {
+                if ($uc < $v) {
+                    $unplayedCardsLower++;
+                }
+            }
+            $ct = count($unplayedCards[$s]);
+            $unplayedCardsHigher = $ct - $unplayedCardsLower;
+            if ($unplayedCardsLower - $naturalIndex++ - $shields < 1) {
+                $shields++;
+            }
+            if ($ct) {
+                $shields += ($ct - $unplayedCardsLower) / $ct;
+                $shieldedness = !$unplayedCardsLower ? 0 : ($shields + $naturalIndex) / $unplayedCardsLower / $myCardCounts[$s];
+            }
+        }
     }
 }

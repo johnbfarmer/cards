@@ -14,10 +14,10 @@ class Game extends BaseProcess {
     protected $gameOver = false;
     protected $winner = 'nobody';
     protected $playerData = [
-        ['name' => 'Dilbert', 'riskTolerance' => 0.1],
-        ['name' => 'Ululua', 'riskTolerance' => 0.2],
-        ['name' => 'Sally', 'riskTolerance' => 0.3],
-        ['name' => 'Smelch', 'riskTolerance' => 0.4],
+        ['name' => 'Dilbert', 'riskTolerance' => 0.25],
+        ['name' => 'Ululua', 'riskTolerance' => 0.3],
+        ['name' => 'Sally', 'riskTolerance' => 0.2],
+        ['name' => 'Smelch', 'riskTolerance' => 0.35],
     ];
 
     public function __construct($params)

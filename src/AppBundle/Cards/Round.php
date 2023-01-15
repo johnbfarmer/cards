@@ -88,6 +88,7 @@ class Round extends BaseProcess {
         // }
         // check to see if anyone shot the moon
         $shotTheMoon = null;
+        $stmNote = '';
         foreach ($scores as $id => $score) {
             if ($score === 26) {
                 $shotTheMoon = $id;
@@ -96,6 +97,7 @@ class Round extends BaseProcess {
 
         if ($shotTheMoon) {
             $this->writeln($this->players[$shotTheMoon]->getName() . ' SHOT THE MOON!!.');
+            $stmNote = ' (STM)';
             foreach ($scores as $id => $score) {
                 if ($id === $shotTheMoon) {
                     $scores[$id] = 0;
@@ -106,6 +108,7 @@ class Round extends BaseProcess {
         }
 
         foreach ($scores as $id => $score) {
+$this->writeln($this->players[$id]->getName() . ' has ' . $score . ' points this round'. $stmNote);
             $this->gameScores[$id] += $score;
         }
 
@@ -139,7 +142,7 @@ class Round extends BaseProcess {
 
         $this->roundScores[$takesTrick] += $points;
         $this->leadPlayer = $takesTrick;
-        $this->writeln($points . ' for ' . $this->players[$takesTrick]->getName());
+        $this->writeln($this->players[$takesTrick]->getName() . ' takes ' . $points . ' points ');
     }
 
     protected function passCards()
