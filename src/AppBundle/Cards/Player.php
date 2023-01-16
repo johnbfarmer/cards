@@ -36,7 +36,7 @@ class Player extends BaseProcess {
     {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
-        $this->handStrategy = $this->selector->getRoundStrategy($hand->getCards(), $isHoldHand, $this->gameScores, $this->riskTolerance);
+        $this->analyzeHand(!$isHoldHand);
         if ($this->handStrategy === 'shootTheMoon') {
             print $this->name . ' says I shall try to shoot the moon'."\n";
             $this->selector = new ShootTheMoonSelector([]);
@@ -90,19 +90,27 @@ class Player extends BaseProcess {
     public function receivePassedCards($c)
     {
         $this->hand->addCards($c);
-        $newHandStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), true, $this->gameScores, $this->riskTolerance);
+        // $this->analyzeHand();
+    }
+
+    protected function analyzeHand($passingWillHappen = false)
+    {
+        $newHandStrategy = null;
+        foreach ($this->roundScores as $idx => $roundScore) {
+            if ($roundScore && $idx != $this->id) {
+                $newHandStrategy = 'avoidPoints';
+            }
+        }
+        if (is_null($newHandStrategy)) {
+            $newHandStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $passingWillHappen, $this->gameScores, $this->riskTolerance);
+        }
         if ($this->handStrategy !== $newHandStrategy) {
+            if (!is_null($this->handStrategy)) {
+                $this->writeln($this->name . ' says I shall change my strategy to ' . $newHandStrategy);
+            }
             $this->handStrategy = $newHandStrategy;
             $this->selector = $this->getSelector();
-            $this->writeln($this->name . ' says I shall change my strategy to ' . $this->handStrategy);
         }
-        // if ($this->handStrategy === 'shootTheMoon') {
-        //     $this->handStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $this->isHoldHand, $this->gameScores, $this->riskTolerance);
-        //     if ($this->handStrategy !== 'shootTheMoon') {
-        //         print $this->name . ' says I shall no longer shoot the moon'."\n";
-        //         $this->selector = new DefaultSelector([]);
-        //     }
-        // }
     }
 
     protected function getSelector()
@@ -187,6 +195,7 @@ class Player extends BaseProcess {
         }
         $this->gameScores[$takesTrick] += $points;
         $this->roundScores[$takesTrick] += $points;
+        $this->analyzeHand();
         if ($this->handStrategy === 'shootTheMoon' && $points && $takesTrick !== $this->id) {
             $this->handStrategy = 'avoidPoints';
             print $this->name . ' says I shall no longer shoot the moon'."\n";

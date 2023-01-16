@@ -6,7 +6,7 @@ class BaseSelector extends BaseProcess {
     protected $importanceGivenToVoid = .25;
     protected $avpThreshold = 440; // if avp > this and stm < stmThreshold, go for it
     protected $stmThreshold = 150;
-    protected $handAnalysis = ['AVP' => [[],[],[],[]], 'STM' => [[],[],[],[]]];
+    protected $handAnalysis = ['AVP' => [], 'STM' => []];
 
     public function selectLeadCard($data) {
         if (count($data['eligibleCards']) === 1) {
@@ -503,8 +503,6 @@ $this->writeln($indexes);
             }
             $this->handAnalysis['AVP'][$idx] = $avpDanger;
             $this->handAnalysis['STM'][$idx] = $stmDanger;
-            // $this->handAnalysis['AVP'][$s][$v] = $unplayedCardsLower * max($unplayedCardsLower - $myCardsLower, 0);
-            // $this->handAnalysis['STM'][$s][$v] = $unplayedCardsHigher * max($unplayedCardsHigher - $myCardsHigher, 0);
             $myCardsLower++;
         }
 $this->writeln($this->handAnalysis);
@@ -565,7 +563,7 @@ $this->writeln($this->handAnalysis);
             $this->writeln("shouldShootTheMoon $riskTolerance, $riskSumAvp, $riskSumStm");
         }
 
-        return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm);
+        return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm); // FIX, adjust to constant inquiry, not just at beginning
     }
 
     protected function calculateRatings($data, $unplayedCards)
@@ -771,39 +769,5 @@ $this->writeln("There is a ".(100 * $p1)."% chance that one player has none give
         }
 
         return $unplayedCards;
-    }
-
-    protected function rateHandBySuit($data, $unplayedCards, $suit)
-    {
-        // [], 2, 23, 234 perfect score for example
-        // rate for normal and for STM here ?
-        // score is shieldedness
-        $cards = $data['eligibleCards'];
-        $shields = 0;
-        foreach ($cards as $idx => $c) {
-            if ($c->getSuit() != $suit) {
-                continue;
-            }
-            $v = $c->getValue();
-            $dspl = $c->getDisplay();
-            $void = $data['playersVoidInSuit'][$s];
-            $naturalIndex = 0;
-            $shieldedness = 0;
-            $unplayedCardsLower = 0;
-            foreach($unplayedCards[$s] as $uc) {
-                if ($uc < $v) {
-                    $unplayedCardsLower++;
-                }
-            }
-            $ct = count($unplayedCards[$s]);
-            $unplayedCardsHigher = $ct - $unplayedCardsLower;
-            if ($unplayedCardsLower - $naturalIndex++ - $shields < 1) {
-                $shields++;
-            }
-            if ($ct) {
-                $shields += ($ct - $unplayedCardsLower) / $ct;
-                $shieldedness = !$unplayedCardsLower ? 0 : ($shields + $naturalIndex) / $unplayedCardsLower / $myCardCounts[$s];
-            }
-        }
     }
 }
