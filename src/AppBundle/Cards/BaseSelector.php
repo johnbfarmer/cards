@@ -8,12 +8,19 @@ class BaseSelector extends BaseProcess {
     protected $stmThreshold = 150;
     protected $handAnalysis = ['AVP' => [], 'STM' => []];
 
+    public function __construct($params)
+    {
+        if (!empty($params['handAnalysis'])) {
+            $this->handAnalysis = $params['handAnalysis'];
+        }
+    }
+
     public function selectLeadCard($data) {
         if (count($data['eligibleCards']) === 1) {
             return array_keys($data['eligibleCards'])[0];
         }
 
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], [], $data['allCards']);
+        $unplayedCards = $data['unplayedCards'];
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
@@ -30,7 +37,7 @@ class BaseSelector extends BaseProcess {
         $ret = [];
         foreach ($data['eligibleCards'] as $idx => $c) {
             $rating = $ratingsMatrix[$idx]['rating'];
-$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
+// $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
         }
 
@@ -87,7 +94,7 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
         if (!$canTakeTrick) {
             return $this->mostDangerous($data['eligibleCards']);
         }
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+        $unplayedCards = $data['unplayedCards'];
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
@@ -116,6 +123,8 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
         $data['leadSuit'] = $suit;
         $data['highestVal'] = $highestVal;
         $data['numberOfPlayersAfterMe'] = $numberOfPlayersAfterMe;
+// $this->writeln('unplayedCards');
+// $this->writeln($unplayedCards);
         $ratingsMatrix = $this->calculateRatings($data, $unplayedCards);
 // $this->writeln($ratingsMatrix);
         $ratings = [];
@@ -123,7 +132,7 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoidPoints)");
         $ret = [];
         foreach ($data['eligibleCards'] as $idx => $c) {
             $rating = $ratingsMatrix[$idx]['rating'];
-$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoid pts)");
+// $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (avoid pts)");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
         }
 
@@ -207,7 +216,7 @@ $this->writeln("lowestTakeCard idxToReturn $idx ");
                 break;
             }
         }
-$this->writeln(array_keys($eligibleCards));
+// $this->writeln(array_keys($eligibleCards));
 $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return $idxToReturn;
     }
@@ -215,51 +224,7 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
     // return hand indices in reverse order of 3 cards to pass
     public function selectCardsToPass($data)
     {
-// $this->writeln('new alg says pass');
-// $this->writeln($this->selectCardsToPassNew()['AVP']);
-return $this->selectCardsToPassNew()['AVP'];
-        $cards = $data['hand'];
-        $scores = $data['gameScores'];
-        $strategy = $data['strategy'];
-        $h = [];
-        foreach ($cards as $idx => $c) {
-            $s = $c->getSuit();
-            $v = $c->getValue();
-            $dspl = $c->getDisplay();
-            if (empty($h[$s])) {
-                $h[$s] = [];
-            }
-            $h[$s][] = ['v' => $v, 'i' => $idx, 'd' => $dspl, 'danger' => 0];
-        }
-
-        foreach ($h as $suit => $arr) {
-            $h[$suit] = $this->calculateDangerForAvoidingPoints($suit, $arr);
-        }
-
-        $sorted = [];
-
-        foreach ($h as $suit => $arr) {
-            foreach ($arr as $thing1) {
-                $insertIndex = 0;
-                foreach ($sorted as $i => $thing2) {
-                    if ($thing1['danger'] < $thing2['danger']) {
-                        $insertIndex = $i + 1;
-                    }
-                }
-                array_splice($sorted, $insertIndex, 0, [$thing1]);
-            }
-        }
-        $indexes = [];
-        $ct = 0;
-        foreach ($sorted as $thing2) {
-            if ($ct++ < 3) {
-                $indexes[] = $thing2['i'];
-            }
-        }
-        arsort($indexes);
-$this->writeln('passing');
-$this->writeln($indexes);
-        return $indexes;
+        return $this->selectCardsToPassNew()['AVP'];
     }
 
     protected function selectCardsToPassNew()
@@ -454,18 +419,30 @@ $this->writeln($indexes);
         return false;
     }
 
-    public function getRoundStrategy($cards, $isHoldHand, $scores, $riskTolerance)
+    public function getRoundStrategy($data)
     {
-        $this->analyzeHand($cards);
-        if ($this->shouldShootTheMoon($cards, $isHoldHand, $scores, $riskTolerance)) {
+        $cards = $data['cards'];
+        $noPassing = $data['noPassing'];
+        $gameScores = $data['gameScores'];
+        $riskTolerance = $data['riskTolerance'];
+        $unplayedCards = $data['unplayedCards'];
+        $this->analyzeHand($cards, $unplayedCards);
+        if ($this->shouldShootTheMoon($cards, $noPassing, $gameScores, $riskTolerance)) {
             return 'shootTheMoon';
         }
         return 'avoidPoints';
     }
 
-    protected function analyzeHand($cards)
+    protected function analyzeHand($cards, $unplayedCards)
     {
-        $unplayedCards = $this->getCardsRemaining([], [], $cards);
+        $this->handAnalysis['AVP'] = [];
+        $this->handAnalysis['STM'] = [];
+// $this->writeln('unplayedCards');
+// $this->writeln($unplayedCards);
+        // $this->writeln(debug_backtrace());
+        if (is_null($unplayedCards)) {
+            throw new \Exception('unplayed cards is null!');
+        }
         $myCardCounts = $this->countMyCardsBySuit($cards);
         $s = -1;
         foreach ($cards as $idx => $c) {
@@ -487,25 +464,33 @@ $this->writeln($indexes);
             $myCardsHigher = $myCardCounts[$s] - $myCardsLower - 1;
             $avpDanger = $unplayedCardsLower * max($unplayedCardsLower - $myCardsLower, 0);
             $stmDanger = $unplayedCardsHigher * max($unplayedCardsHigher - $myCardsHigher, 0);
-            if ($v == 0 && $s == 0) {
+            $queenAtLarge = !empty($unplayedCards[3][10]);
+            if ($s == 0 && $v == 0) {
                 $myCardsLower--; // 2 of clubs does not count as a myCardsLower
                 $avpDanger = 0;
                 $stmDanger = 0;
             }
-            if ($s == 3 && $v >= 10) {
+            if ($s == 3 && $v == 10) {
                 $avpDanger *= 3;
             }
-            if ($s == 3 && $v < 10) {
-                $avpDanger = 0; // we love low spades for avp
+            if ($queenAtLarge) {
+                if ($s == 3 && $v > 10) {
+                    $avpDanger *= 3;
+                }
+                if ($s == 3 && $v < 10) {
+                    $avpDanger = 0; // we love low spades for avp
+                }
             }
             if ($s == 2) {
                 $stmDanger *= 8; // low hearts are deadly
             }
+            // $this->writeln($c->getDisplay()." avpDanger $avpDanger stmDanger $stmDanger unplayedCardsLower $unplayedCardsLower myCardsLower $myCardsLower ct $ct");
             $this->handAnalysis['AVP'][$idx] = $avpDanger;
             $this->handAnalysis['STM'][$idx] = $stmDanger;
             $myCardsLower++;
         }
-$this->writeln($this->handAnalysis);
+            // $this->writeln('handAnalysis');
+            // $this->writeln($this->handAnalysis);
     }
 
     protected function combo($a, $b) {
@@ -563,6 +548,20 @@ $this->writeln($this->handAnalysis);
             $this->writeln("shouldShootTheMoon $riskTolerance, $riskSumAvp, $riskSumStm");
         }
 
+        // if ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) {
+        //     $this->writeln( "avp > avpThreshold && stm < stmThreshold");
+        // }
+
+        $pctLeft = count($cards) / 13;
+
+        // if ($riskSumAvp > $pctLeft*$this->avpThreshold && $riskSumStm < $pctLeft*$this->stmThreshold) {
+            // $this->writeln( "avp > avpThreshold && stm < stmThreshold. pctLeft: $pctLeft");
+        // }
+
+        // if ($riskTolerance * $riskSumAvp > $riskSumStm) {
+            // $this->writeln( "riskTolerance * riskSumAvp > riskSumStm");
+        // }
+
         return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm); // FIX, adjust to constant inquiry, not just at beginning
     }
 
@@ -602,15 +601,9 @@ $this->writeln($this->handAnalysis);
             $ct = count($unplayedCards[$s]);
             $unplayedCardsHigher = $ct - $unplayedCardsLower;
             // justification: if leading, ct = 0 means nobody has this suit
-$this->writeln("idx $idx $dspl");
+// $this->writeln("idx $idx $dspl");
             $probabilityOfTakingTrick = !$ct ? 1 : $unplayedCardsLower / $ct;
             if (!empty($data['leadSuit'])) {
-// $this->writeln("JBF");
-// $this->writeln(array_keys($data['cardsPlayedThisTrick']));
-// $this->writeln($data['yetToPlay']);
-// $this->writeln($data['playersVoidInSuit'][$s]);
-// $this->writeln(array_values(array_intersect($data['yetToPlay'], $data['playersVoidInSuit'][$s])));
-                // $stillToPlay = array_diff(array_diff([1,2,3,4], array_keys($data['cardsPlayedThisTrick'])), []);
                 $isLeadSuit = $s == $data['leadSuit'];
                 $takesTrick = $isLeadSuit && $v > $data['highestVal'];
                 $yetToPlayAndVoid = array_values(array_intersect($data['yetToPlay'], $data['playersVoidInSuit'][$s]));
@@ -627,7 +620,8 @@ $this->writeln("idx $idx $dspl");
                 $shields += ($ct - $unplayedCardsLower) / $ct;
                 $shieldedness = !$unplayedCardsLower ? 0 : ($shields + $naturalIndex) / $unplayedCardsLower / $myCardCounts[$s];
             }
-            $probabilityOfImprovingHand = !$ct ? 0 : (1 - $this->importanceGivenToVoid) * ($unplayedCardsLower / $ct) + $this->importanceGivenToVoid * ($myCardCounts[$s] < 2 ? 1 : 0);
+            $probabilityOfImprovingHand = $this->getProbabilityOfImprovingHand($data, $idx, $unplayedCards);
+            // $probabilityOfImprovingHand = !$ct ? 0 : (1 - $this->importanceGivenToVoid) * ($unplayedCardsLower / $ct) + $this->importanceGivenToVoid * ($myCardCounts[$s] < 2 ? 1 : 0);
             if ($isQueenOfSpades || $queenOfSpadesAtLarge && $takesQueenOfSpades) {
                 $probabilityOfImprovingHand = 1;
             }
@@ -637,10 +631,10 @@ $this->writeln("idx $idx $dspl");
 // $this->writeln("probabilityOfTakingPoints $probabilityOfTakingPoints");
 // $this->writeln("probabilityOfTakingTrick $probabilityOfTakingTrick");
 // $this->writeln("shieldedness $shieldedness");
-$this->writeln("probabilityOfSomeoneVoidInSuit ".$data['probabilityOfSomeoneVoidInSuit'][$s]);
+// $this->writeln("probabilityOfSomeoneVoidInSuit ".$data['probabilityOfSomeoneVoidInSuit'][$s]);
 // $this->writeln("unplayedCardsHigher $unplayedCardsHigher");
-$this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
-$this->writeln("rating $rating ($riskTolerance * $probabilityOfImprovingHand + (".(1-$riskTolerance).") * (".(1-$probabilityOfTakingPoints)."))");
+// $this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
+// $this->writeln("rating $rating ($riskTolerance * $probabilityOfImprovingHand + (".(1-$riskTolerance).") * (".(1-$probabilityOfTakingPoints)."))");
             $h[$s][] = [
                 'v' => $v,
                 'i' => $idx,
@@ -663,6 +657,36 @@ $this->writeln("rating $rating ($riskTolerance * $probabilityOfImprovingHand + (
         return $ret;
     }
 
+    protected function getProbabilityOfImprovingHand($data, $idxCardToRemove, $unplayedCards)
+    {
+        $cards = $data['allCards'];
+        if (empty($this->handAnalysis['AVP'])) {
+            $this->analyzeHand($cards, $unplayedCards);
+        }
+        $origHandAnalysis = $this->handAnalysis;
+        $ct = count($cards);
+        $tmpC = $cards[$idxCardToRemove];
+        unset($cards[$idxCardToRemove]);
+        $this->analyzeHand($cards, $unplayedCards);
+        $newHandAnalysis = $this->handAnalysis;
+        $cards[$idxCardToRemove] = $tmpC;
+        $this->handAnalysis = $origHandAnalysis;
+        $riskSumNew = 0;
+        foreach ($newHandAnalysis['AVP'] as $danger) {
+            $riskSumNew += $danger;
+        }
+        $riskSumOrig = 0;
+        foreach ($origHandAnalysis['AVP'] as $danger) {
+            $riskSumOrig += $danger;
+        }
+        $diffStm = (($ct-1)/$ct) * $riskSumOrig - $riskSumNew;
+// $this->writeln('  diff '.$diffStm);
+// $this->writeln($riskSumOrig);
+// $this->writeln($newHandAnalysis['AVP']);
+// $this->writeln($origHandAnalysis['AVP']);
+        return !$riskSumOrig ? 1 : $diffStm / $riskSumOrig;
+    }
+
     protected function getProbabilityOfOneVoidInSuit($numUnplayed, $numUnplayedThisSuit)
     {
         $thoseWithThatSuit = 2 / 3 * $numUnplayed; // there are three other players, so 2/3 of the cards will contain all those cards of the suit
@@ -677,7 +701,7 @@ $this->writeln("rating $rating ($riskTolerance * $probabilityOfImprovingHand + (
         }
 
         $p1 = round($num / $denom, 3);
-$this->writeln("There is a ".(100 * $p1)."% chance that one player has none given $numUnplayedThisSuit | $numUnplayed");
+// $this->writeln("There is a ".(100 * $p1)."% chance that one player has none given $numUnplayedThisSuit | $numUnplayed");
         return $p1;
         // return 1 - pow(1 - $p1, 3);
     }
@@ -741,33 +765,14 @@ $this->writeln("There is a ".(100 * $p1)."% chance that one player has none give
         return array_keys($cards);
     }
 
-    protected function getCardsRemaining($cardsPlayedThisRound, $cardsPlayedThisTrick, $myCards)
+    public function showAnalysis()
     {
-        $allCards = [
-            [0,1,2,3,4,5,6,7,8,9,10,11,12],
-            [0,1,2,3,4,5,6,7,8,9,10,11,12],
-            [0,1,2,3,4,5,6,7,8,9,10,11,12],
-            [0,1,2,3,4,5,6,7,8,9,10,11,12],
-        ];
-        $playedCards = [[],[],[],[],];
-        foreach ($cardsPlayedThisRound as $id => $cards) {
-            foreach ($cards as $c) {
-                $playedCards[$c->getSuit()][] = $c->getValue();
-            }
-        }
-        foreach ($cardsPlayedThisTrick as $id => $c) {
-            $playedCards[$c->getSuit()][] = $c->getValue();
-        }
-        foreach ($myCards as $id => $c) {
-            $playedCards[$c->getSuit()][] = $c->getValue();
-        }
+        $this->writeln('showAnalysis');
+        $this->writeln($this->handAnalysis);
+    }
 
-        $unplayedCards = [];
-
-        for ($suit=0; $suit<4; $suit++) {
-            $unplayedCards[$suit] = array_values(array_diff($allCards[$suit], $playedCards[$suit]));
-        }
-
-        return $unplayedCards;
+    public function getAnalysis()
+    {
+        return $this->handAnalysis;
     }
 }

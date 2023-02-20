@@ -12,9 +12,11 @@ class Player extends BaseProcess {
     protected $roundScores = [];
     protected $cardPlayed;
     protected $cardsPlayedThisRound = [];
+    protected $unplayedCards = [[],[],[],[]];
     protected $playersVoidInSuit = [[],[],[],[]]; //playersVoidInSuit[0][2] means p2 void in suit 0
     protected $isHoldHand;
-    protected $handStrategy;
+    protected $handStrategy = 'avoidPoints';
+    protected $handAnalysis = ['AVP' => [], 'STM' => []];
     protected $trickStrategy;
     protected $selector;
 
@@ -27,7 +29,7 @@ class Player extends BaseProcess {
 
         $this->id = $id;
         $this->name = $name;
-        $this->selector = new DefaultSelector([]);
+        $this->selector = new DefaultSelector(['handAnalysis' => $this->handAnalysis]);
         $this->riskTolerance = !empty($data['riskTolerance']) ? $data['riskTolerance'] : rand(1,40)/100;
         $this->writeln($this->name . ' has riskTolerance ' . $this->riskTolerance);
     }
@@ -36,26 +38,35 @@ class Player extends BaseProcess {
     {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
-        $this->analyzeHand(!$isHoldHand);
+        $this->unplayedCards = $this->getUnplayedCards();
+        $this->analyzeHand(!$isHoldHand, $this->unplayedCards);
         if ($this->handStrategy === 'shootTheMoon') {
             print $this->name . ' says I shall try to shoot the moon'."\n";
-            $this->selector = new ShootTheMoonSelector([]);
+            $this->selector = new ShootTheMoonSelector(['handAnalysis' => $this->handAnalysis]);
         } else {
-            $this->selector = new DefaultSelector([]);
+            // $this->selector = new DefaultSelector([]);
         }
         $this->cardsPlayedThisRound = [];
         $this->cardPlayed = null;
         $this->playersVoidInSuit = [[],[],[],[]];
     }
 
-    public function showHand()
+    public function showHand($showHand = true)
     {
         $s = $this->name;
         if ($this->cardPlayed) {
             $s .= ' plays the ' . $this->cardPlayed->getDisplay();
+            $this->writeln($s);
+            $this->writeln('');
         }
-        $this->writeln($s);
-        $this->hand->show();
+        if ($showHand) {
+            $this->hand->show($s);
+        }
+    }
+
+    public function showAnalysis()
+    {
+        $this->selector->showAnalysis();
     }
 
     public function report()
@@ -74,6 +85,7 @@ class Player extends BaseProcess {
                 $cardToPlayIdx = $this->selectLeadCard($eligibleCards, $isFirstTrick);
             }
         } else {
+            $this->unplayedCards = $this->removeFromUnplayed($cardsPlayedThisTrick);
             $suit = array_values($cardsPlayedThisTrick)[0]->getSuit();
             $eligibleCards = $this->hand->getEligibleCards($suit, $isFirstTrick);
             $cardToPlayIdx = $this->selectCard($eligibleCards, $isFirstTrick, $cardsPlayedThisTrick);
@@ -90,10 +102,9 @@ class Player extends BaseProcess {
     public function receivePassedCards($c)
     {
         $this->hand->addCards($c);
-        // $this->analyzeHand();
     }
 
-    protected function analyzeHand($passingWillHappen = false)
+    public function analyzeHand($passingWillHappen = false)
     {
         $newHandStrategy = null;
         foreach ($this->roundScores as $idx => $roundScore) {
@@ -102,8 +113,15 @@ class Player extends BaseProcess {
             }
         }
         if (is_null($newHandStrategy)) {
-            $newHandStrategy = $this->selector->getRoundStrategy($this->hand->getCards(), $passingWillHappen, $this->gameScores, $this->riskTolerance);
+            $newHandStrategy = $this->selector->getRoundStrategy([
+                'cards' => $this->hand->getCards(),
+                'noPassing' => !$passingWillHappen,
+                'gameScores' => $this->gameScores,
+                'riskTolerance' => $this->riskTolerance,
+                'unplayedCards' => $this->unplayedCards,
+            ]);
         }
+        $this->handAnalysis = $this->selector->getAnalysis();
         if ($this->handStrategy !== $newHandStrategy) {
             if (!is_null($this->handStrategy)) {
                 $this->writeln($this->name . ' says I shall change my strategy to ' . $newHandStrategy);
@@ -117,9 +135,9 @@ class Player extends BaseProcess {
     {
         switch ($this->handStrategy) {
             case 'shootTheMoon':
-                return new ShootTheMoonSelector([]);
+                return new ShootTheMoonSelector(['handAnalysis' => $this->handAnalysis]);
             default:
-                return new DefaultSelector([]);
+                return new DefaultSelector(['handAnalysis' => $this->handAnalysis]);
         }
     }
 
@@ -129,6 +147,7 @@ class Player extends BaseProcess {
             'riskTolerance' => $this->riskTolerance,
             'eligibleCards' => $eligibleCards,
             'allCards' => $this->hand->getCards(),
+            'unplayedCards' => $this->unplayedCards,
             'isFirstTrick' => $isFirstTrick,
             'cardsPlayedThisTrick' => $cardsPlayedThisTrick,
             'handStrategy' => $this->handStrategy,
@@ -145,6 +164,7 @@ class Player extends BaseProcess {
             'riskTolerance' => $this->riskTolerance,
             'eligibleCards' => $eligibleCards,
             'allCards' => $this->hand->getCards(),
+            'unplayedCards' => $this->unplayedCards,
             'isFirstTrick' => $isFirstTrick,
             'handStrategy' => $this->handStrategy,
             'trickStrategy' => $this->trickStrategy,
@@ -165,6 +185,8 @@ class Player extends BaseProcess {
                 $this->roundScores[$id] = 0;
             }
         }
+
+        $this->unplayedCards = $this->removeFromUnplayed($info['cardsPlayed']);
 
         foreach ($info['cardsPlayed'] as $id => $c) {
             if (empty($this->cardsPlayedThisRound[$id])) {
@@ -199,8 +221,48 @@ class Player extends BaseProcess {
         if ($this->handStrategy === 'shootTheMoon' && $points && $takesTrick !== $this->id) {
             $this->handStrategy = 'avoidPoints';
             print $this->name . ' says I shall no longer shoot the moon'."\n";
-            $this->selector = new DefaultSelector([]);
+            $this->selector = new DefaultSelector(['handAnalysis' => $this->handAnalysis]);
         }
+        $this->cardPlayed = null;
+        $this->showHand();
+    }
+
+    protected function getUnplayedCards()
+    {
+        $allCards = [
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+            [0,1,2,3,4,5,6,7,8,9,10,11,12],
+        ];
+        $playedCards = [[],[],[],[],];
+        foreach ($this->hand->getCards() as $c) {
+            $playedCards[$c->getSuit()][] = $c->getValue();
+        }
+
+        $unplayedCards = [];
+
+        for ($suit=0; $suit<4; $suit++) {
+            $unplayedCards[$suit] = array_values(array_diff($allCards[$suit], $playedCards[$suit]));
+        }
+
+        return $unplayedCards;
+    }
+
+    protected function removeFromUnplayed($cardsPlayedThisTrick)
+    {
+        $playedCards = [[],[],[],[],];
+        foreach ($cardsPlayedThisTrick as $c) {
+            $playedCards[$c->getSuit()][] = $c->getValue();
+        }
+
+        $unplayedCards = [];
+
+        for ($suit=0; $suit<4; $suit++) {
+            $unplayedCards[$suit] = array_values(array_diff($this->unplayedCards[$suit], $playedCards[$suit]));
+        }
+
+        return $unplayedCards;
     }
 
     public function hasCards()

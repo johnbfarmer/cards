@@ -21,9 +21,9 @@ class Hand extends BaseProcess {
         );
     }
 
-    public function show()
+    public function show($s)
     {
-        $this->showCards($this->cards, '', true);
+        $this->showCards($this->cards, $s.' ', true);
     }
 
     public function remove($idx)

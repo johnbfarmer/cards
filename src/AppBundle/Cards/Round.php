@@ -154,6 +154,7 @@ $this->writeln($this->players[$id]->getName() . ' has ' . $score . ' points this
 
         $cardsInTransition = [];
         foreach ($this->players as $i => $p) {
+$p->showAnalysis();            
             $cardsInTransition[$i] = $p->getCardsToPass($this->passDirection);
         }
 

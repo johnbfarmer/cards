@@ -8,7 +8,7 @@ class ShootTheMoonSelector extends BaseSelector {
             return array_keys($data['eligibleCards'])[0];
         }
 
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], [], $data['allCards']);
+        $unplayedCards = $data['unplayedCards'];
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
@@ -25,7 +25,7 @@ class ShootTheMoonSelector extends BaseSelector {
         $ret = [];
         foreach ($data['eligibleCards'] as $idx => $c) {
             $rating = $ratingsMatrix[$idx]['rating'];
-$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
+// $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
         }
 
@@ -89,7 +89,8 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
         $cards = $data['hand'];
         $scores = $data['gameScores'];
         $strategy = $data['strategy'];
-
+$this->writeln('stm');
+$this->showAnalysis();
         $myCardCounts = $this->countMyCardsBySuit($cards);
         $h = [];
         foreach ($cards as $idx => $c) {
@@ -136,7 +137,7 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
         if (!$canTakeTrick) {
             return $this->leastDangerous($data['eligibleCards']);
         }
-        $unplayedCards = $this->getCardsRemaining($data['cardsPlayedThisRound'], $data['cardsPlayedThisTrick'], $data['allCards']);
+        $unplayedCards = $data['unplayedCards'];
         $numUnplayed = count($unplayedCards[0]) + count($unplayedCards[1]) + count($unplayedCards[2]) + count($unplayedCards[3]);
         $probabilityOfSomeoneVoidInSuit = [];
         for ($i = 0; $i < 4; $i++) {
@@ -175,7 +176,7 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
             $ct = count($unplayedCards[$suit]);
             $probabilityOfTakingTrick = !$takesTrick ? 0 : (!$ct ? 1 : $unplayedCardsLower / $ct);
             $rating = $ratingsMatrix[$idx]['rating'];
-$this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
+// $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
             $ratings[] = ['rating' => $rating, 'idx' => $idx];
         }
 
@@ -195,6 +196,37 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
         }
 
         return $ret;
+    }
+
+    protected function getProbabilityOfImprovingHand($data, $idxCardToRemove, $unplayedCards)
+    {
+        $cards = $data['allCards'];
+        if (empty($this->handAnalysis['STM'])) {
+            $this->analyzeHand($cards, $unplayedCards);
+        }
+        $origHandAnalysis = $this->handAnalysis;
+        $ct = count($cards);
+        $tmpC = $cards[$idxCardToRemove];
+        unset($cards[$idxCardToRemove]);
+        $this->analyzeHand($cards, $unplayedCards);
+        $newHandAnalysis = $this->handAnalysis;
+        $cards[$idxCardToRemove] = $tmpC;
+        $this->handAnalysis = $origHandAnalysis;
+        $riskSumStmNew = 0;
+        foreach ($newHandAnalysis['STM'] as $danger) {
+            $riskSumStmNew += $danger;
+        }
+        $riskSumStmOrig = 0;
+        foreach ($origHandAnalysis['STM'] as $danger) {
+            $riskSumStmOrig += $danger;
+        }
+        $diffStm = (($ct-1)/$ct) * $riskSumStmOrig - $riskSumStmNew;
+// $this->writeln('diff '.$diffStm);
+// $this->writeln($riskSumStmOrig);
+// $this->writeln($newHandAnalysis['STM']);
+// $this->writeln($origHandAnalysis['STM']);
+        return !$riskSumStmOrig ? 1 : $diffStm / $riskSumStmOrig;
+        return 0.25;
     }
 
     protected function calculateRatings($data, $unplayedCards)
@@ -232,11 +264,12 @@ $this->writeln("idx $idx ".$c->getDisplay()." rating $rating (shootTheMoon)");
             if ($unplayedCardsHigher - $naturalIndex - $shields < 1) {
                 $shields++;
             }
-            $probabilityOfImprovingHand = !$ct ? 0 : $unplayedCardsHigher / $ct;
+            $probabilityOfImprovingHand = $this->getProbabilityOfImprovingHand($data, $idx, $unplayedCards);
+            // $probabilityOfImprovingHand = !$ct ? 0 : $unplayedCardsHigher / $ct;
             $riskTolerance = $data['riskTolerance'];
             $vulnerability = !$ct ? 0 : $ct > $shields ? ($unplayedCardsHigher - $shields) / ($ct - $shields) : 0;
             $shieldedness = min(1 - $vulnerability, 1);
-$this->writeln("idx $idx $dspl");
+// $this->writeln("idx $idx $dspl");
             if (!empty($data['leadSuit'])) {
                 $isLeadSuit = $s == $data['leadSuit'];
                 $takesTrick = $isLeadSuit && $v > $data['highestVal'];
@@ -246,14 +279,15 @@ $this->writeln("idx $idx $dspl");
                 $probabilityOfTakingTrick = 1 - $probabilityOtherTakesTrick;
             }
             $probabilityOfOthersTakingPoints = $probabilityOfPointsThisTrick * $probabilityOfOthersTakingTrick;
-$this->writeln("probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints");
+// $this->writeln("probabilityOfOthersTakingPoints $probabilityOfOthersTakingPoints");
 // $this->writeln("probabilityOfSomeoneVoidInSuit $probabilityOfSomeoneVoidInSuit");
 // $this->writeln("shieldedness $shieldedness");
-$this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
+// $this->writeln("probabilityOfImprovingHand $probabilityOfImprovingHand");
+// $this->writeln('straight-up calc: '.($riskTolerance * $probabilityOfImprovingHand + (1-$riskTolerance) * (1-$probabilityOfOthersTakingPoints)));
 
             $rating = $probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints ? $riskTolerance * $probabilityOfImprovingHand + (1-$riskTolerance) * (1-$probabilityOfOthersTakingPoints) : 1 - $probabilityOfOthersTakingPoints;
             $ratingCalc = $probabilityOfImprovingHand > $probabilityOfOthersTakingPoints && $riskTolerance > $probabilityOfOthersTakingPoints ? "$riskTolerance * $probabilityOfImprovingHand + ".(1-$riskTolerance)." * ".(1-$probabilityOfOthersTakingPoints) : "1 - $probabilityOfOthersTakingPoints";
-$this->writeln("rating $rating ($ratingCalc)");
+// $this->writeln("rating $rating ($ratingCalc)");
             $h[$s][] = [
                 'v' => $v,
                 'i' => $idx,

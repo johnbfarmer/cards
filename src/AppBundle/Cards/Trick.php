@@ -44,7 +44,7 @@ class Trick extends BaseProcess {
 
         foreach ($this->getPlayerOrder() as $i) {
             $this->cardsPlayed[$i] = $this->players[$i]->playCard($this->cardsPlayed, $this->isBrokenHearts, $this->isFirstTrick);
-            $this->players[$i]->showHand();
+            $this->players[$i]->showHand(false);
             if (!$this->players[$i]->hasCards()) {
                 $this->endRound();
             }
