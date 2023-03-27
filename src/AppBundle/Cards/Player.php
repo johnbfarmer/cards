@@ -39,16 +39,17 @@ class Player extends BaseProcess {
         $this->hand = $hand;
         $this->isHoldHand = $isHoldHand;
         $this->unplayedCards = $this->getUnplayedCards();
-        $this->analyzeHand(!$isHoldHand, $this->unplayedCards);
+        $this->cardsPlayedThisRound = [];
+        $this->cardPlayed = null;
+        $this->playersVoidInSuit = [[],[],[],[]];
+        $this->roundScores = [0,0,0,0];
+        $this->analyzeHand(!$isHoldHand);
         if ($this->handStrategy === 'shootTheMoon') {
             print $this->name . ' says I shall try to shoot the moon'."\n";
             $this->selector = new ShootTheMoonSelector(['handAnalysis' => $this->handAnalysis]);
         } else {
             // $this->selector = new DefaultSelector([]);
         }
-        $this->cardsPlayedThisRound = [];
-        $this->cardPlayed = null;
-        $this->playersVoidInSuit = [[],[],[],[]];
     }
 
     public function showHand($showHand = true)
@@ -106,10 +107,16 @@ class Player extends BaseProcess {
 
     public function analyzeHand($passingWillHappen = false)
     {
+        if (array_sum($this->roundScores) > 25 || count($this->hand->getCards()) < 2) {
+$this->writeln(array_sum($this->roundScores));
+$this->writeln(count($this->hand->getCards()));
+            return;
+        }
         $newHandStrategy = null;
         foreach ($this->roundScores as $idx => $roundScore) {
             if ($roundScore && $idx != $this->id) {
                 $newHandStrategy = 'avoidPoints';
+                $this->writeln($this->name . ': someone has points');
             }
         }
         if (is_null($newHandStrategy)) {
@@ -120,6 +127,7 @@ class Player extends BaseProcess {
                 'riskTolerance' => $this->riskTolerance,
                 'unplayedCards' => $this->unplayedCards,
             ]);
+            $this->writeln($this->name . ' strategy: ' . $newHandStrategy);
         }
         $this->handAnalysis = $this->selector->getAnalysis();
         if ($this->handStrategy !== $newHandStrategy) {

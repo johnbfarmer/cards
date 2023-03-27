@@ -5,7 +5,7 @@ namespace AppBundle\Cards;
 class BaseSelector extends BaseProcess {
     protected $importanceGivenToVoid = .25;
     protected $avpThreshold = 440; // if avp > this and stm < stmThreshold, go for it
-    protected $stmThreshold = 150;
+    protected $stmThreshold = 100;
     protected $handAnalysis = ['AVP' => [], 'STM' => []];
 
     public function __construct($params)
@@ -282,52 +282,6 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return $sorted;
     }
 
-    protected function calculateDangerForAvoidingPoints($suit, $arr)
-    {
-        switch ($suit) {
-            case 3:
-                foreach ($arr as $idx => $vi) {
-                    $arr[$idx]['danger'] = $vi['v'] === 10 && count($arr) < 4 ? 1000 : ($vi['v'] >= 10 && count($arr) < 3 ? 900 + $vi['v'] : 0);
-                }
-                return $arr;
-            case 0:
-                $hasTheTwo = false;
-                foreach ($arr as $idx => $vi) {
-                    if (!$vi['v']) {
-                        $hasTheTwo = true;
-                    }
-                }
-                if ($hasTheTwo) {
-                    $base = 0;
-                    $ct = 0;
-                    foreach ($arr as $idx => $vi) {
-                        if ($ct++ < 4) {
-                            $base += $vi['v'] - $idx;
-                        }
-                    }
-                    foreach ($arr as $idx => $vi) {
-                        $arr[$idx]['danger'] = $base * ($vi['v'] - $idx);
-                    }
-                    return $arr;
-                }
-            default:
-                $base = 0;
-                $ct = 0;
-                foreach ($arr as $idx => $vi) {
-                    if ($ct++ < 3) {
-                        $base += $vi['v'] - $idx;
-                    }
-                }
-                if ($suit === 2) {
-                    $base *= 2;
-                }
-                foreach ($arr as $idx => $vi) {
-                    $arr[$idx]['danger'] = $base * ($vi['v'] - $idx);
-                }
-                return $arr;
-        }
-    }
-
     protected function calculateDangerForShootingTheMoon($suit, $arr)
     {
         rsort($arr);
@@ -391,10 +345,11 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         foreach ($cards as $c) {
             $suit = $c->getSuit();
             if ($suit == 2 || ($suit == 3 && $c->getValue() == 10)) {
+$this->writeln('this trick has points');
                 return true;
             }
         }
-
+$this->writeln('this trick DOES NOT have points');
         return false;
     }
 
@@ -412,22 +367,24 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         rsort($eligibleCards);
         foreach ($eligibleCards as $c) {
             if ($c->getSuit() == $suit && $c->getValue() > $highestVal) {
+$this->writeln('I can take this tricks');
                 return true;
             }
         }
 
+$this->writeln('I canNOT take this tricks');
         return false;
     }
 
     public function getRoundStrategy($data)
     {
         $cards = $data['cards'];
-        $noPassing = $data['noPassing'];
+        $passing = !$data['noPassing'];
         $gameScores = $data['gameScores'];
         $riskTolerance = $data['riskTolerance'];
         $unplayedCards = $data['unplayedCards'];
         $this->analyzeHand($cards, $unplayedCards);
-        if ($this->shouldShootTheMoon($cards, $noPassing, $gameScores, $riskTolerance)) {
+        if ($this->shouldShootTheMoon($cards, $passing, $gameScores, $riskTolerance)) {
             return 'shootTheMoon';
         }
         return 'avoidPoints';
@@ -526,17 +483,24 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return combo($numUnknownInSuit, $targetNumber) * combo($numCardsOtherPlayers, $numUnknownInSuit-$targetNumber) / combo($numUnknown, $numUnknownInSuit);
     }
 
-    public function shouldShootTheMoon($cards, $noPassing, $scores, $riskTolerance)
+    public function shouldShootTheMoon($cards, $passing, $scores, $riskTolerance)
     {
+        if (count($cards) < 2) {
+            return false;
+        }
         $riskSumAvp = 0;
         $riskSumStm = 0;
+        // do others have points?
+        // will successfully shooting lose me the game?
+        // 
         foreach ($this->handAnalysis['AVP'] as $danger) {
             $riskSumAvp += $danger;
         }
         foreach ($this->handAnalysis['STM'] as $danger) {
             $riskSumStm += $danger;
         }
-        if (!$noPassing) {
+        if ($passing) {
+            $this->writeln("shouldShootTheMoon(before pass) $riskTolerance, $riskSumAvp, $riskSumStm");
             $cardsToPass = $this->selectCardsToPassNew();
             foreach ($cardsToPass['AVP'] as $idx) {
                 $riskSumAvp -= $this->handAnalysis['AVP'][$idx];
@@ -544,15 +508,28 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
             foreach ($cardsToPass['STM'] as $idx) {
                 $riskSumStm -= $this->handAnalysis['STM'][$idx];
             }
-        } else {
-            $this->writeln("shouldShootTheMoon $riskTolerance, $riskSumAvp, $riskSumStm");
+            // passing means also receiving; let's adjust for vulerability; fcn should return expected vals for 3 cards
+            $riskSumStm += $this->getStmVulnerabilityOfPass($cards, $cardsToPass['STM']);
         }
+
+
+
+        // let's try risk tolerance times stmscore, adjusted for cards left, compared to stmThreshold 
+        $normalizedStm = $riskSumStm / count($cards) * 13;
+        $stmThreshold = $this->stmThreshold;
+
+        $decision = (1-$riskTolerance) * $normalizedStm < $stmThreshold;
+        $this->writeln((1-$riskTolerance).' * '.$normalizedStm.' < '.$stmThreshold);
+        $this->writeln("shouldShootTheMoon $decision, $stmThreshold, $riskTolerance, $riskSumAvp, $normalizedStm");
+        return $decision;
+        // $this->writeln('('.$riskSumAvp .' > '.$this->avpThreshold.' && '.$riskSumStm.' < '.$this->stmThreshold.') || ('.$riskTolerance.' * '.$riskSumAvp.' > '.$riskSumStm.')');
+
 
         // if ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) {
         //     $this->writeln( "avp > avpThreshold && stm < stmThreshold");
         // }
 
-        $pctLeft = count($cards) / 13;
+        // $pctLeft = count($cards) / 13;
 
         // if ($riskSumAvp > $pctLeft*$this->avpThreshold && $riskSumStm < $pctLeft*$this->stmThreshold) {
             // $this->writeln( "avp > avpThreshold && stm < stmThreshold. pctLeft: $pctLeft");
@@ -562,7 +539,8 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
             // $this->writeln( "riskTolerance * riskSumAvp > riskSumStm");
         // }
 
-        return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm); // FIX, adjust to constant inquiry, not just at beginning
+        // return ($riskSumAvp > $this->avpThreshold && $riskSumStm < $this->stmThreshold) || ($riskTolerance * $riskSumAvp > $riskSumStm); // FIX, adjust to constant inquiry, not just at beginning
+
     }
 
     protected function calculateRatings($data, $unplayedCards)
@@ -765,9 +743,30 @@ $this->writeln("highestTakeCard idxToReturn $idxToReturn ");
         return array_keys($cards);
     }
 
+    protected function getStmVulnerabilityOfPass($cards, $cardsToPass)
+    {
+        $cardsInHand = [];
+        $ctpIndexes = [];
+        $ctpIndexes = $cardsToPass;
+        // foreach ($cardsToPass as $card) {
+        //     $ctpIndexes[] = $card->getIdx();
+        // }
+        foreach ($cards as $card) {
+            if (in_array($card->getIdx(), $ctpIndexes)) {
+                continue;
+            }
+            $cardsInHand[] = $card;
+        }
+        $suitDistribution = $this->countMyCardsBySuit($cardsInHand);
+        // typical cards you might be passed that are bad for stm: low hearts, low others in which you don't have many high cards
+        // start with hearts, >= 3 => 0, 2 => 20, <2 => 40
+        $points = $suitDistribution[2] < 2 ? 40 : ($suitDistribution[2] > 2 ? 0 : 20);
+        return $points;
+    }
+
     public function showAnalysis()
     {
-        $this->writeln('showAnalysis');
+        // $this->writeln('showAnalysis');
         $this->writeln($this->handAnalysis);
     }
 
