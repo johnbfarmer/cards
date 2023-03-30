@@ -367,12 +367,12 @@ $this->writeln('this trick DOES NOT have points');
         rsort($eligibleCards);
         foreach ($eligibleCards as $c) {
             if ($c->getSuit() == $suit && $c->getValue() > $highestVal) {
-$this->writeln('I can take this tricks');
+$this->writeln('I can take this trick');
                 return true;
             }
         }
 
-$this->writeln('I canNOT take this tricks');
+$this->writeln('I canNOT take this trick');
         return false;
     }
 
@@ -392,21 +392,25 @@ $this->writeln('I canNOT take this tricks');
 
     protected function analyzeHand($cards, $unplayedCards)
     {
-        $this->handAnalysis['AVP'] = [];
-        $this->handAnalysis['STM'] = [];
-// $this->writeln('unplayedCards');
-// $this->writeln($unplayedCards);
-        // $this->writeln(debug_backtrace());
         if (is_null($unplayedCards)) {
             throw new \Exception('unplayed cards is null!');
         }
+        $this->handAnalysis['AVP'] = [];
+        $this->handAnalysis['STM'] = [];
+        $elementaryAnalysis = [];
         $myCardCounts = $this->countMyCardsBySuit($cards);
+        $iHaveTheQueen = false;
         $s = -1;
+
+        // loop 1: elementary analysis
         foreach ($cards as $idx => $c) {
             if ($s != $c->getSuit()) {
                 $s = $c->getSuit();
                 $myCardsLower = 0;
                 $ct = count($unplayedCards[$s]);
+                $prevAvp = 0;
+                $prevStm = 0;
+                $prevUnplayedLower = -1;
             }
             $v = $c->getValue();
             $unplayedCardsLower = 0;
@@ -421,14 +425,46 @@ $this->writeln('I canNOT take this tricks');
             $myCardsHigher = $myCardCounts[$s] - $myCardsLower - 1;
             $avpDanger = $unplayedCardsLower * max($unplayedCardsLower - $myCardsLower, 0);
             $stmDanger = $unplayedCardsHigher * max($unplayedCardsHigher - $myCardsHigher, 0);
-            $queenAtLarge = !empty($unplayedCards[3][10]);
+            $queenAtLarge = !empty($unplayedCards[3]) && !in_array(10, $unplayedCards[3]);
             if ($s == 0 && $v == 0) {
                 $myCardsLower--; // 2 of clubs does not count as a myCardsLower
                 $avpDanger = 0;
                 $stmDanger = 0;
             }
+            $elementaryAnalysis[] = [
+                'suit' => $s,
+                'suitCount' => $ct,
+                'val' => $v,
+                'display' => $c->getDisplay(),
+                'myLower' => $myCardsLower,
+                'myHigher' => $myCardsHigher,
+                'theirLower' => $unplayedCardsLower,
+                'theirHigher' => $unplayedCardsHigher,
+                'avpDanger' => $avpDanger,
+                'stmDanger' => $stmDanger,
+            ];
+            $this->handAnalysis['AVP'][$idx] = $avpDanger;
+            $this->handAnalysis['STM'][$idx] = $stmDanger;
+            $myCardsLower++;
+        }
+
+        // loop 2: forward walk for avp
+        $prevSuit = -1;
+        foreach ($elementaryAnalysis as $idx => $a) {
+            $s = $a['suit'];
+            if ($s !== $prevSuit) {
+                $prevAvp = 0;
+                $prevUnplayedLower = -1;
+                $prevSuit = $s;
+            }
+            $v = $a['val'];
+            $ct = $a['suitCount'];
+            $myCardsLower = $a['myLower'];
+            $unplayedCardsLower = $a['theirLower'];
+            $avpDanger = $a['avpDanger'];
             if ($s == 3 && $v == 10) {
                 $avpDanger *= 3;
+                $iHaveTheQueen = true;
             }
             if ($queenAtLarge) {
                 if ($s == 3 && $v > 10) {
@@ -438,16 +474,46 @@ $this->writeln('I canNOT take this tricks');
                     $avpDanger = 0; // we love low spades for avp
                 }
             }
-            if ($s == 2) {
-                $stmDanger *= 8; // low hearts are deadly
-            }
+            // if ($myCardsHigher > 3) {
+
+            // }
             // $this->writeln($c->getDisplay()." avpDanger $avpDanger stmDanger $stmDanger unplayedCardsLower $unplayedCardsLower myCardsLower $myCardsLower ct $ct");
+
+            if ($avpDanger <= $prevAvp && $s != 3 && $prevUnplayedLower === $unplayedCardsLower) {
+                $avpDanger = $prevAvp + 1;
+            }
             $this->handAnalysis['AVP'][$idx] = $avpDanger;
-            $this->handAnalysis['STM'][$idx] = $stmDanger;
-            $myCardsLower++;
+            $prevAvp = $avpDanger;
+            $prevUnplayedLower = $unplayedCardsLower;
         }
-            // $this->writeln('handAnalysis');
-            // $this->writeln($this->handAnalysis);
+
+        // loop 3: reverse walk for stm
+        $prevSuit = -1;
+        foreach (array_reverse($elementaryAnalysis) as $idx => $a) {
+            $s = $a['suit'];
+            if ($s !== $prevSuit) {
+                $prevStm = 0;
+                $prevUnplayedHigher = -1;
+                $prevSuit = $s;
+            }
+            $v = $a['val'];
+            $ct = $a['suitCount'];
+            $myCardsHigher = $a['myHigher'];
+            $unplayedCardsHigher = $a['theirHigher'];
+            $stmDanger = $a['stmDanger'];
+            $adjIdx = count($cards) - $idx;
+            if ($s == 2) {
+                $stmDanger *= 8; // low hearts are deadly, but that 8 should be player-specific
+            }
+            if ($stmDanger <= $prevStm && $s != 3 && $prevUnplayedHigher === $unplayedCardsHigher) {
+// $this->writeln($a['display'].' '.json_encode($a));
+                $stmDanger = $prevStm + 1;
+            }
+
+            $this->handAnalysis['STM'][$adjIdx] = $stmDanger;
+            $prevStm = $stmDanger;
+            $prevUnplayedHigher = $unplayedCardsHigher;
+        }
     }
 
     protected function combo($a, $b) {

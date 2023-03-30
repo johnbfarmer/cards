@@ -89,8 +89,8 @@ class ShootTheMoonSelector extends BaseSelector {
         $cards = $data['hand'];
         $scores = $data['gameScores'];
         $strategy = $data['strategy'];
-$this->writeln('stm');
-$this->showAnalysis();
+// $this->writeln('stm');
+// $this->showAnalysis();
         $myCardCounts = $this->countMyCardsBySuit($cards);
         $h = [];
         foreach ($cards as $idx => $c) {
