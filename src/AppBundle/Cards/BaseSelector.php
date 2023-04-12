@@ -361,18 +361,25 @@ $this->writeln('this trick DOES NOT have points');
         $highestVal = null;
         foreach ($cardsPlayedThisTrick as $c) {
             $suit = is_null($suit) ? $c->getSuit() : $suit;
+            if (is_null($suit)) {
+                $suit = $c->getSuit();
+                $highestVal = $c->getValue();
+                continue;
+            }
             $val = $c->getValue();
-            $highestVal = is_null($highestVal) ? $val : ($val > $highestVal ? $val : $highestVal);
+            if ($suit == $c->getSuit() && $val > $highestVal) {
+                $highestVal = $val;
+            }
         }
+
         rsort($eligibleCards);
+
         foreach ($eligibleCards as $c) {
             if ($c->getSuit() == $suit && $c->getValue() > $highestVal) {
-$this->writeln('I can take this trick');
                 return true;
             }
         }
 
-$this->writeln('I canNOT take this trick');
         return false;
     }
 

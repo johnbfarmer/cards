@@ -61,7 +61,7 @@ class Player extends BaseProcess {
             $this->writeln('');
         }
         if ($showHand) {
-            $this->hand->show($s);
+            $this->hand->show("x Cards for $s:");
         }
     }
 

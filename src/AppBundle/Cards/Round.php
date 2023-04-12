@@ -73,9 +73,9 @@ class Round extends BaseProcess {
 
     public function report()
     {
-        $this->writeln('At the end of round ' . $this->roundCount . ', the score is: ');
+        $this->writeln('x At the end of round ' . $this->roundCount . ', the score is: ');
         foreach($this->players as $playerId => $player) {
-            $this->writeln($player->getName() . ' has ' . $this->gameScores[$playerId] . ' points.');
+            $this->writeln('x '.$player->getName() . ' has ' . $this->gameScores[$playerId] . ' points.');
         }
     }
 
@@ -142,7 +142,7 @@ $this->writeln($this->players[$id]->getName() . ' has ' . $score . ' points this
 
         $this->roundScores[$takesTrick] += $points;
         $this->leadPlayer = $takesTrick;
-        $this->writeln($this->players[$takesTrick]->getName() . ' takes ' . $points . ' points ');
+        $this->writeln('x ' . $this->players[$takesTrick]->getName() . ' takes ' . $points . ' points ');
     }
 
     protected function passCards()

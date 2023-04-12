@@ -84,11 +84,6 @@ class Game extends BaseProcess {
                     $winners[] = $this->players[$playerId]->getName();
                 }
             }
-            // foreach ($this->players as $player) {
-            //     if ($player->getMyScore() === $minScore) {
-            //         $winners[] = $player->getName();
-            //     }
-            // }
 
             if (count($winners) === 1) {
                 $this->winner = $winners[0];

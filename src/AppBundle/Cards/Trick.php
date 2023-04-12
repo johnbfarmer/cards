@@ -59,7 +59,7 @@ class Trick extends BaseProcess {
 
     public function show()
     {
-        $s = 'Cards Played: ';
+        $s = 'x Cards Played: ';
         foreach($this->cardsPlayed as $c) {
             $s .= $c->getDisplay(). ' ';
         }
